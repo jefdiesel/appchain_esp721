@@ -13,7 +13,7 @@ export default function RegisterPage() {
 
   // Validate name (no spaces, lowercase, alphanumeric + hyphen)
   const validateName = (n: string) => {
-    return /^[a-z0-9-]+$/.test(n) && n.length >= 1 && n.length <= 32;
+    return /^[a-zA-Z0-9-]+$/.test(n) && n.length >= 1 && n.length <= 32;
   };
 
   const nameError = name && !validateName(name)
@@ -177,7 +177,7 @@ export default function RegisterPage() {
                 type="text"
                 value={name}
                 onChange={(e) => {
-                  setName(e.target.value.toLowerCase().replace(/\s/g, ""));
+                  setName(e.target.value.replace(/\s/g, ""));
                   setStatus("idle");
                   setOwner(null);
                 }}
