@@ -20,6 +20,7 @@ interface OwnedName {
   txHash: string;
 }
 
+
 function UploadContent() {
   const searchParams = useSearchParams();
   const [username, setUsername] = useState<string>(searchParams.get("name") || "");
@@ -29,6 +30,9 @@ function UploadContent() {
   const [scanning, setScanning] = useState(false);
   const [homeFile, setHomeFile] = useState<PageFile | null>(null);
   const [aboutFile, setAboutFile] = useState<PageFile | null>(null);
+  const [manualHomeTx, setManualHomeTx] = useState("");
+  const [manualAboutTx, setManualAboutTx] = useState("");
+  const [useManual, setUseManual] = useState(false);
   const [selectedChain, setSelectedChain] = useState<ChainOption>("eth");
   const [manifestTx, setManifestTx] = useState<string | null>(null);
   const [inscribingManifest, setInscribingManifest] = useState(false);
@@ -227,11 +231,15 @@ function UploadContent() {
         },
       };
 
-      if (homeFile?.txHash) {
-        manifest.chainhost[username].home = homeFile.txHash;
+      // Use manual tx hashes or uploaded file tx hashes
+      const homeTx = useManual ? manualHomeTx.trim() : homeFile?.txHash;
+      const aboutTx = useManual ? manualAboutTx.trim() : aboutFile?.txHash;
+
+      if (homeTx) {
+        manifest.chainhost[username].home = homeTx;
       }
-      if (aboutFile?.txHash) {
-        manifest.chainhost[username].about = aboutFile.txHash;
+      if (aboutTx) {
+        manifest.chainhost[username].about = aboutTx;
       }
 
       // Inscribe on Ethereum (manifest always on ETH for permanence)
@@ -275,7 +283,9 @@ function UploadContent() {
     }
   };
 
-  const canInscribeManifest = homeFile?.txHash || aboutFile?.txHash;
+  const canInscribeManifest = useManual
+    ? (manualHomeTx.trim() || manualAboutTx.trim())
+    : (homeFile?.txHash || aboutFile?.txHash);
   const explorerUrl = (tx: string, chain: ChainOption) =>
     chain === "eth"
       ? `https://etherscan.io/tx/${tx}`
@@ -420,6 +430,63 @@ function UploadContent() {
           </div>
         </div>
 
+        {/* Mode toggle */}
+        <div className="flex justify-center gap-3 mb-8">
+          <button
+            onClick={() => setUseManual(false)}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              !useManual
+                ? "bg-[#C3FF00] text-black"
+                : "bg-zinc-800 text-gray-400 hover:text-white"
+            }`}
+          >
+            Upload Files
+          </button>
+          <button
+            onClick={() => setUseManual(true)}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              useManual
+                ? "bg-[#C3FF00] text-black"
+                : "bg-zinc-800 text-gray-400 hover:text-white"
+            }`}
+          >
+            Manual Tx Hashes
+          </button>
+        </div>
+
+        {useManual ? (
+          /* Manual mode - paste tx hashes */
+          <div className="space-y-4 mb-8">
+            <div className="border border-zinc-800 rounded-xl p-6">
+              <h3 className="font-semibold mb-1">Home Page Tx Hash</h3>
+              <p className="text-sm text-gray-500 mb-3">
+                Transaction containing your home page HTML
+              </p>
+              <input
+                type="text"
+                value={manualHomeTx}
+                onChange={(e) => setManualHomeTx(e.target.value)}
+                placeholder="0x..."
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 font-mono text-sm focus:outline-none focus:border-[#C3FF00]"
+              />
+            </div>
+            <div className="border border-zinc-800 rounded-xl p-6">
+              <h3 className="font-semibold mb-1">About Page Tx Hash</h3>
+              <p className="text-sm text-gray-500 mb-3">
+                Transaction containing your about page HTML (optional)
+              </p>
+              <input
+                type="text"
+                value={manualAboutTx}
+                onChange={(e) => setManualAboutTx(e.target.value)}
+                placeholder="0x..."
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 font-mono text-sm focus:outline-none focus:border-[#C3FF00]"
+              />
+            </div>
+          </div>
+        ) : (
+          /* Upload mode */
+          <>
         {/* Home file upload */}
         <div className="border border-zinc-800 rounded-xl p-6 mb-4">
           <div className="flex items-center justify-between mb-4">
@@ -549,6 +616,8 @@ function UploadContent() {
             </div>
           )}
         </div>
+          </>
+        )}
 
         {/* Manifest inscription */}
         {canInscribeManifest && !manifestTx && (
