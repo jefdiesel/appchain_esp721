@@ -513,7 +513,7 @@ function imagePageHtml(name, dataUri, txHash, pixelArt, manifest) {
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#000;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;padding-bottom:60px}
 img{
-  ${pixelArt ? 'image-rendering:pixelated;image-rendering:crisp-edges;' : ''}
+  ${pixelArt ? 'image-rendering:pixelated;image-rendering:crisp-edges;min-width:50vw;min-height:50vh;object-fit:contain;' : ''}
   max-width:100%;
   max-height:calc(100vh - 80px);
   width:auto;
