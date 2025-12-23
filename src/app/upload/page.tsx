@@ -419,8 +419,8 @@ function UploadContent() {
 
           {!homeFile ? (
             <label className="block cursor-pointer">
-              <div className="border-2 border-dashed border-zinc-700 rounded-lg p-8 text-center hover:border-[#C3FF00] transition">
-                <p className="text-gray-400 mb-2">Drop HTML file or click</p>
+              <div className="border-2 border-dashed border-zinc-700 rounded-lg p-8 text-center hover:border-[#C3FF00] transition cursor-pointer">
+                <p className="text-gray-400 mb-2">Click to select HTML file</p>
                 <p className="text-xs text-gray-600">index.html, home.html</p>
               </div>
               <input
@@ -484,8 +484,8 @@ function UploadContent() {
 
           {!aboutFile ? (
             <label className="block cursor-pointer">
-              <div className="border-2 border-dashed border-zinc-700 rounded-lg p-8 text-center hover:border-[#C3FF00] transition">
-                <p className="text-gray-400 mb-2">Drop HTML file or click</p>
+              <div className="border-2 border-dashed border-zinc-700 rounded-lg p-8 text-center hover:border-[#C3FF00] transition cursor-pointer">
+                <p className="text-gray-400 mb-2">Click to select HTML file</p>
                 <p className="text-xs text-gray-600">Optional profile page</p>
               </div>
               <input
