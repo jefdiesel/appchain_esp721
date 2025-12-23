@@ -91,6 +91,8 @@ function UploadContent() {
           if (matchedName) {
             setUsername(matchedName.name); // Use original case from inscription
             setOwnershipVerified(true);
+            // Update URL to reflect correct case
+            window.history.replaceState({}, '', `/upload?name=${encodeURIComponent(matchedName.name)}`);
           }
 
           setScanning(false);
@@ -129,6 +131,8 @@ function UploadContent() {
       if (matchedName) {
         setUsername(matchedName.name); // Use original case from inscription
         setOwnershipVerified(true);
+        // Update URL to reflect correct case
+        window.history.replaceState({}, '', `/upload?name=${encodeURIComponent(matchedName.name)}`);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to scan wallet");
@@ -142,6 +146,8 @@ function UploadContent() {
     setUsername(name);
     setOwnershipVerified(true);
     setError("");
+    // Update URL to reflect correct case
+    window.history.replaceState({}, '', `/upload?name=${encodeURIComponent(name)}`);
   };
 
   // SHA256 helper
