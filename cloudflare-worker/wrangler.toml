@@ -8,7 +8,3 @@ preview_urls = false
 [[routes]]
 pattern = "*.chainhost.online/*"
 zone_name = "chainhost.online"
-
-[vars]
-SUPABASE_URL = "https://rvmuhstovplabuvnkrpj.supabase.co"
-SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ2bXVoc3RvdnBsYWJ1dm5rcnBqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NTkxMTYwMiwiZXhwIjoyMDgxNDg3NjAyfQ.6MAhnkqsewtg_tM_rMWg_j7FWF8CSRRZ-IbXtnUBcyM"

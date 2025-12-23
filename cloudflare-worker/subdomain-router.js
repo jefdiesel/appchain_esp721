@@ -225,19 +225,40 @@ async function fetchFromRPC(rpcUrl, txHash) {
 
 async function getInscriptionHistory(owner) {
   try {
-    // Get owner's HTML ethscriptions (previous versions)
+    // Get all chainhost manifests from this owner
     const res = await fetch(
-      `${ETHSCRIPTIONS_API}/ethscriptions?current_owner=${owner}&mime_subtype=html&per_page=20`
+      `${ETHSCRIPTIONS_API}/ethscriptions?current_owner=${owner}&mime_subtype=json&per_page=50`
     );
     const data = await res.json();
 
     if (!data.result?.length) return [];
 
-    return data.result.map(eth => ({
-      txHash: eth.transaction_hash,
-      timestamp: eth.block_timestamp,
-      number: eth.ethscription_number,
-    }));
+    const history = [];
+
+    // Extract all tx hashes from chainhost manifests
+    for (const eth of data.result) {
+      try {
+        const content = await fetchEthscriptionContent(eth.transaction_hash);
+        if (content) {
+          const parsed = JSON.parse(content);
+          if (parsed.chainhost) {
+            // Add each route's content to history
+            for (const [route, txHash] of Object.entries(parsed.chainhost)) {
+              history.push({
+                txHash,
+                route,
+                manifestTx: eth.transaction_hash,
+                timestamp: eth.block_timestamp,
+              });
+            }
+          }
+        }
+      } catch (e) {
+        // Not valid JSON or not chainhost manifest
+      }
+    }
+
+    return history;
   } catch (e) {
     console.error('History lookup error:', e);
     return [];
@@ -422,15 +443,20 @@ function previousPage(name, owner, history) {
 
   const historyHtml = history.length > 0
     ? history.map(h => {
-        const date = new Date(h.timestamp * 1000).toLocaleDateString('en-US', {
-          year: 'numeric', month: 'short', day: 'numeric'
-        });
+        const date = h.timestamp
+          ? new Date(h.timestamp * 1000).toLocaleDateString('en-US', {
+              year: 'numeric', month: 'short', day: 'numeric'
+            })
+          : 'Unknown';
         return `<a href="https://ethscriptions.com/ethscriptions/${h.txHash}" target="_blank" class="item">
-          <span class="date">${date}</span>
-          <span class="tx">${h.txHash.slice(0, 16)}...</span>
+          <div class="item-left">
+            <span class="route">/${h.route}</span>
+            <span class="date">${date}</span>
+          </div>
+          <span class="tx">${h.txHash.slice(0, 12)}...</span>
         </a>`;
       }).join('')
-    : '<p class="empty">No previous versions found.</p>';
+    : '<p class="empty">No chainhost content found.</p>';
 
   return `<!DOCTYPE html>
 <html><head>
@@ -445,20 +471,24 @@ body{font-family:system-ui,sans-serif;background:#000;color:#fff;min-height:100v
 h1{font-size:2rem;margin-bottom:0.5rem}
 .owner{font-family:monospace;color:#C3FF00;font-size:0.875rem;margin-bottom:2rem}
 .history{display:flex;flex-direction:column;gap:8px}
-.item{display:flex;justify-content:space-between;padding:12px 16px;background:#111;border:1px solid #222;border-radius:8px;text-decoration:none;transition:border-color 0.2s}
+.item{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#111;border:1px solid #222;border-radius:8px;text-decoration:none;transition:border-color 0.2s}
 .item:hover{border-color:#C3FF00}
-.date{color:#888;font-size:0.875rem}
+.item-left{display:flex;flex-direction:column;gap:2px}
+.route{color:#fff;font-weight:500}
+.date{color:#555;font-size:0.75rem}
 .tx{color:#C3FF00;font-family:monospace;font-size:0.75rem}
 .empty{color:#555;text-align:center;padding:40px}
 .back{display:inline-block;margin-top:2rem;color:#888;text-decoration:none}
 .back:hover{color:#C3FF00}
+.note{color:#444;font-size:0.75rem;margin-top:1rem;text-align:center}
 </style>
 </head><body>
 <div class="container">
 <h1>${name}</h1>
 <div class="owner">${short}</div>
-<h2 style="color:#888;font-size:0.875rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:1rem">Previous Versions</h2>
+<h2 style="color:#888;font-size:0.875rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:1rem">Chainhost History</h2>
 <div class="history">${historyHtml}</div>
+<p class="note">Only showing content linked via chainhost manifests</p>
 <a href="/" class="back">← Back to site</a>
 </div>
 </body></html>`;
@@ -475,42 +505,93 @@ function recoveryPage(name, owner) {
 <link rel="icon" href="${FAVICON}">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:system-ui,sans-serif;background:#000;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center}
-.container{max-width:500px;padding:40px;text-align:center}
-h1{font-size:2rem;margin-bottom:0.5rem}
-.owner{font-family:monospace;color:#C3FF00;font-size:0.875rem;margin-bottom:2rem}
-h2{color:#888;font-size:1rem;margin-bottom:1.5rem}
-.links{display:flex;flex-direction:column;gap:12px;margin-bottom:2rem}
-.link{display:block;padding:16px 24px;background:#111;border:1px solid #333;border-radius:12px;color:#fff;text-decoration:none;transition:all 0.2s}
-.link:hover{border-color:#C3FF00;background:#0a0a0a}
-.link span{display:block;color:#888;font-size:0.75rem;margin-top:4px}
-.info{color:#555;font-size:0.875rem;line-height:1.6}
-.back{display:inline-block;margin-top:2rem;color:#888;text-decoration:none}
+body{font-family:system-ui,sans-serif;background:#000;color:#fff;min-height:100vh;padding:40px 20px}
+.container{max-width:640px;margin:0 auto}
+h1{font-size:2rem;margin-bottom:0.5rem;text-align:center}
+.owner{font-family:monospace;color:#C3FF00;font-size:0.875rem;margin-bottom:2rem;text-align:center}
+h2{color:#C3FF00;font-size:0.75rem;text-transform:uppercase;letter-spacing:2px;margin:2rem 0 1rem}
+.section{background:#111;border:1px solid #222;border-radius:12px;padding:20px;margin-bottom:1rem}
+.section p{color:#888;font-size:0.875rem;line-height:1.6;margin-bottom:0.5rem}
+.section p:last-child{margin-bottom:0}
+.highlight{color:#C3FF00}
+.steps{display:flex;flex-direction:column;gap:12px}
+.step{display:flex;gap:12px;align-items:flex-start}
+.num{width:24px;height:24px;background:#C3FF00;color:#000;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.75rem;flex-shrink:0}
+.step-content{flex:1}
+.step-content strong{color:#fff;display:block;margin-bottom:2px}
+.step-content span{color:#666;font-size:0.8rem}
+code{background:#000;border:1px solid #333;padding:2px 6px;border-radius:4px;font-size:0.8rem;color:#C3FF00}
+.links{display:flex;flex-direction:column;gap:8px;margin-top:1rem}
+.link{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#0a0a0a;border:1px solid #222;border-radius:8px;color:#fff;text-decoration:none;transition:all 0.2s}
+.link:hover{border-color:#C3FF00}
+.link span{color:#C3FF00;font-size:0.75rem}
+.back{display:inline-block;margin-top:2rem;color:#888;text-decoration:none;text-align:center;width:100%}
 .back:hover{color:#C3FF00}
 </style>
 </head><body>
 <div class="container">
 <h1>Recovery</h1>
 <div class="owner">${short}</div>
-<h2>Backup & Recovery Options</h2>
+
+<h2>Your Data is Safe</h2>
+<div class="section">
+<p><span class="highlight">Your content lives forever on Ethereum.</span> Even if chainhost.online disappears, your site can be recovered by anyone with the open-source resolver.</p>
+<p>Everything is on-chain: your name ownership (<code>data:,${name}</code>), your HTML content, and your manifest linking them together.</p>
+</div>
+
+<h2>Self-Host in 4 Steps</h2>
+<div class="section">
+<div class="steps">
+  <div class="step">
+    <div class="num">1</div>
+    <div class="step-content">
+      <strong>Clone the repo</strong>
+      <span><code>git clone ${GIT_REPO}</code></span>
+    </div>
+  </div>
+  <div class="step">
+    <div class="num">2</div>
+    <div class="step-content">
+      <strong>Create a Cloudflare account</strong>
+      <span>Free tier supports 100 workers, 100k requests/day</span>
+    </div>
+  </div>
+  <div class="step">
+    <div class="num">3</div>
+    <div class="step-content">
+      <strong>Deploy the worker</strong>
+      <span><code>cd cloudflare-worker && npx wrangler deploy</code></span>
+    </div>
+  </div>
+  <div class="step">
+    <div class="num">4</div>
+    <div class="step-content">
+      <strong>Add your domain</strong>
+      <span>Point <code>*.yourdomain.com</code> to the worker in CF dashboard</span>
+    </div>
+  </div>
+</div>
+</div>
+
+<h2>Direct Access</h2>
+<div class="section">
+<p>You can always access your raw content directly on Etherscan or via any Ethereum RPC. The tx hash in your manifest points to the calldata containing your HTML.</p>
 <div class="links">
   <a href="${GIT_REPO}" target="_blank" class="link">
     GitHub Repository
-    <span>Source code for chainhost resolver</span>
+    <span>→</span>
   </a>
   <a href="https://ethscriptions.com/${owner}" target="_blank" class="link">
-    View All Ethscriptions
-    <span>Browse owner's inscriptions</span>
+    Your Ethscriptions
+    <span>→</span>
   </a>
   <a href="https://etherscan.io/address/${owner}" target="_blank" class="link">
-    Etherscan
-    <span>View wallet transactions</span>
+    Etherscan Transactions
+    <span>→</span>
   </a>
 </div>
-<p class="info">
-  Your content is permanently stored on Ethereum.<br>
-  Anyone can run a resolver to access it.
-</p>
+</div>
+
 <a href="/" class="back">← Back to site</a>
 </div>
 </body></html>`;
