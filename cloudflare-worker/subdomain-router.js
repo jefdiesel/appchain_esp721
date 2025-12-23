@@ -27,7 +27,7 @@ export default {
       return new Response('Invalid hostname', { status: 400 });
     }
 
-    const name = parts[0].toLowerCase();
+    let name = parts[0].toLowerCase();
 
     // Skip reserved subdomains
     const reserved = ['www', 'api', 'app', 'dashboard', 'admin', 'mail', 'ftp'];
@@ -45,12 +45,18 @@ export default {
       ];
 
       let nameData = null;
+      let actualName = name; // The actual case from the ethscription
       for (const variant of caseVariations) {
         const nameSha = await sha256(`data:,${variant}`);
         const nameRes = await fetch(`${ETHSCRIPTIONS_API}/ethscriptions/exists/0x${nameSha}`);
         const data = await nameRes.json();
         if (data.result?.exists) {
           nameData = data;
+          // Extract actual name from content_uri
+          const contentUri = data.result.ethscription.content_uri;
+          if (contentUri?.startsWith('data:,')) {
+            actualName = contentUri.slice(6);
+          }
           break;
         }
       }
@@ -63,6 +69,8 @@ export default {
       }
 
       const owner = nameData.result.ethscription.current_owner;
+      // Use actualName (correct case) for everything
+      name = actualName;
 
       // 2. Handle special routes
       if (path === '/recovery') {

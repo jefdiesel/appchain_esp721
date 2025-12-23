@@ -52,8 +52,9 @@ function UploadContent() {
         for (const eth of data.result) {
           if (eth.content_uri?.startsWith("data:,")) {
             const name = eth.content_uri.slice(6);
+            // Preserve original case - don't lowercase
             if (/^[a-z0-9-]+$/i.test(name) && name.length <= 32) {
-              names.push({ name: name.toLowerCase(), txHash: eth.transaction_hash });
+              names.push({ name, txHash: eth.transaction_hash });
             }
           }
         }
@@ -84,10 +85,11 @@ function UploadContent() {
 
           const names = await scanWalletForNames(wallet);
 
-          // If URL has a name param and we own it, auto-select
+          // If URL has a name param and we own it, auto-select (case-insensitive match)
           const urlName = searchParams.get("name");
-          if (urlName && names.some(n => n.name === urlName.toLowerCase())) {
-            setUsername(urlName.toLowerCase());
+          const matchedName = names.find(n => n.name.toLowerCase() === urlName?.toLowerCase());
+          if (matchedName) {
+            setUsername(matchedName.name); // Use original case from inscription
             setOwnershipVerified(true);
           }
 
@@ -121,10 +123,11 @@ function UploadContent() {
 
       const names = await scanWalletForNames(wallet);
 
-      // If URL has a name param and we own it, auto-select
+      // If URL has a name param and we own it, auto-select (case-insensitive match)
       const urlName = searchParams.get("name");
-      if (urlName && names.some(n => n.name === urlName.toLowerCase())) {
-        setUsername(urlName.toLowerCase());
+      const matchedName = names.find(n => n.name.toLowerCase() === urlName?.toLowerCase());
+      if (matchedName) {
+        setUsername(matchedName.name); // Use original case from inscription
         setOwnershipVerified(true);
       }
     } catch (e) {
