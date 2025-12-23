@@ -15,13 +15,18 @@ interface PageFile {
   inscribing?: boolean;
 }
 
+interface OwnedName {
+  name: string;
+  txHash: string;
+}
+
 function UploadContent() {
   const searchParams = useSearchParams();
   const [username, setUsername] = useState<string>(searchParams.get("name") || "");
   const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const [nameOwner, setNameOwner] = useState<string | null>(null);
+  const [ownedNames, setOwnedNames] = useState<OwnedName[]>([]);
   const [ownershipVerified, setOwnershipVerified] = useState(false);
-  const [checkingOwnership, setCheckingOwnership] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const [homeFile, setHomeFile] = useState<PageFile | null>(null);
   const [aboutFile, setAboutFile] = useState<PageFile | null>(null);
   const [selectedChain, setSelectedChain] = useState<ChainOption>("eth");
@@ -29,19 +34,14 @@ function UploadContent() {
   const [inscribingManifest, setInscribingManifest] = useState(false);
   const [error, setError] = useState("");
 
-  // Connect wallet and verify ownership
-  const verifyOwnership = async () => {
-    if (!username.trim()) {
-      setError("Enter a name first");
-      return;
-    }
-
+  // Connect wallet and scan for owned names
+  const connectAndScan = async () => {
     if (!window.ethereum) {
       setError("Please install MetaMask or another wallet");
       return;
     }
 
-    setCheckingOwnership(true);
+    setScanning(true);
     setError("");
 
     try {
@@ -52,34 +52,45 @@ function UploadContent() {
       const wallet = accounts[0].toLowerCase();
       setWalletAddress(wallet);
 
-      // Check name ownership via Ethscriptions API
-      const nameSha = await sha256(`data:,${username.toLowerCase()}`);
+      // Fetch all ethscriptions owned by this wallet that match "data:,name" pattern
       const res = await fetch(
-        `https://api.ethscriptions.com/v2/ethscriptions/exists/0x${nameSha}`
+        `https://api.ethscriptions.com/v2/ethscriptions?current_owner=${wallet}&media_type=text/plain&per_page=100`
       );
       const data = await res.json();
 
-      if (!data.result?.exists) {
-        setError(`Name "${username}" is not claimed. Claim it first at /register`);
-        setNameOwner(null);
-        setOwnershipVerified(false);
-      } else {
-        const owner = data.result.ethscription.current_owner.toLowerCase();
-        setNameOwner(owner);
+      if (data.result?.length) {
+        const names: OwnedName[] = [];
+        for (const eth of data.result) {
+          // Check if content_uri matches "data:,name" pattern (simple name claim)
+          if (eth.content_uri?.startsWith("data:,")) {
+            const name = eth.content_uri.slice(6); // Remove "data:,"
+            // Only include simple alphanumeric names
+            if (/^[a-z0-9]+$/i.test(name) && name.length <= 32) {
+              names.push({ name: name.toLowerCase(), txHash: eth.transaction_hash });
+            }
+          }
+        }
+        setOwnedNames(names);
 
-        if (owner === wallet) {
+        // If URL has a name param and we own it, auto-select
+        const urlName = searchParams.get("name");
+        if (urlName && names.some(n => n.name === urlName.toLowerCase())) {
+          setUsername(urlName.toLowerCase());
           setOwnershipVerified(true);
-          setError("");
-        } else {
-          setOwnershipVerified(false);
-          setError(`You don't own "${username}". It belongs to ${owner.slice(0, 6)}...${owner.slice(-4)}`);
         }
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to verify ownership");
+      setError(e instanceof Error ? e.message : "Failed to scan wallet");
     } finally {
-      setCheckingOwnership(false);
+      setScanning(false);
     }
+  };
+
+  // Select a name from the dropdown
+  const selectName = (name: string) => {
+    setUsername(name);
+    setOwnershipVerified(true);
+    setError("");
   };
 
   // SHA256 helper
@@ -289,53 +300,63 @@ function UploadContent() {
       <main className="max-w-2xl mx-auto px-6 py-12">
         <h1 className="text-3xl font-bold text-center mb-2">Upload Your Site</h1>
 
-        {/* Step 1: Verify ownership */}
+        {/* Step 1: Connect and select name */}
         {!ownershipVerified ? (
           <div className="mb-8">
-            <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden focus-within:border-[#C3FF00] max-w-md mx-auto">
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => {
-                  setUsername(e.target.value.toLowerCase().replace(/\s/g, ""));
-                  setOwnershipVerified(false);
-                  setNameOwner(null);
-                }}
-                className="flex-1 bg-transparent px-4 py-3 text-lg focus:outline-none text-center"
-                placeholder="yourname"
-                maxLength={32}
-              />
-              <span className="text-gray-500 pr-4">.chainhost.online</span>
-            </div>
+            {!walletAddress ? (
+              <>
+                <button
+                  onClick={connectAndScan}
+                  disabled={scanning}
+                  className="mx-auto block px-8 py-3 bg-[#C3FF00] text-black font-bold rounded-lg hover:bg-[#d4ff4d] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {scanning ? "Scanning wallet..." : "Connect Wallet"}
+                </button>
+                <p className="text-center text-xs text-gray-600 mt-3">
+                  Connect to see names you own
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-center text-xs text-gray-500 mb-4">
+                  Connected: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                </p>
 
-            {walletAddress && (
-              <p className="text-center text-xs text-gray-500 mt-2">
-                Connected: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
-              </p>
+                {ownedNames.length > 0 ? (
+                  <div className="max-w-md mx-auto">
+                    <p className="text-sm text-gray-400 mb-3 text-center">Select a name you own:</p>
+                    <div className="space-y-2">
+                      {ownedNames.map((n) => (
+                        <button
+                          key={n.txHash}
+                          onClick={() => selectName(n.name)}
+                          className="w-full p-4 bg-zinc-900 border border-zinc-800 rounded-xl hover:border-[#C3FF00] transition text-left"
+                        >
+                          <span className="text-white font-medium">{n.name}</span>
+                          <span className="text-gray-500">.chainhost.online</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <p className="text-gray-400 mb-4">No chainhost names found in your wallet.</p>
+                    <Link
+                      href="/register"
+                      className="inline-block px-6 py-3 bg-[#C3FF00] text-black font-bold rounded-lg hover:bg-[#d4ff4d]"
+                    >
+                      Register a Name
+                    </Link>
+                  </div>
+                )}
+              </>
             )}
 
             {error && (
               <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mt-4 text-red-400 text-sm text-center max-w-md mx-auto">
                 {error}
-                {error.includes("not claimed") && (
-                  <Link href="/register" className="block mt-2 text-[#C3FF00] hover:underline">
-                    → Register this name
-                  </Link>
-                )}
               </div>
             )}
-
-            <button
-              onClick={verifyOwnership}
-              disabled={checkingOwnership || !username.trim()}
-              className="mt-4 mx-auto block px-8 py-3 bg-[#C3FF00] text-black font-bold rounded-lg hover:bg-[#d4ff4d] disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {checkingOwnership ? "Verifying..." : "Connect & Verify Ownership"}
-            </button>
-
-            <p className="text-center text-xs text-gray-600 mt-3">
-              Connect your wallet to verify you own this name
-            </p>
           </div>
         ) : (
           <>
