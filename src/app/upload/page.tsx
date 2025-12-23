@@ -54,7 +54,7 @@ function UploadContent() {
 
       // Fetch all ethscriptions owned by this wallet that match "data:,name" pattern
       const res = await fetch(
-        `https://api.ethscriptions.com/v2/ethscriptions?current_owner=${wallet}&media_type=text/plain&per_page=100`
+        `https://api.ethscriptions.com/v2/ethscriptions?current_owner=${wallet}&mimetype=text/plain&per_page=100`
       );
       const data = await res.json();
 
