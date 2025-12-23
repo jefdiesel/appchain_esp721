@@ -383,30 +383,6 @@ function UploadContent() {
               </p>
             </div>
 
-            {/* Chain selector */}
-        <div className="flex justify-center gap-3 mb-8">
-          <button
-            onClick={() => setSelectedChain("eth")}
-            className={`px-4 py-2 rounded-lg font-medium transition ${
-              selectedChain === "eth"
-                ? "bg-[#C3FF00] text-black"
-                : "bg-zinc-800 text-gray-400 hover:text-white"
-            }`}
-          >
-            Ethereum
-          </button>
-          <button
-            onClick={() => setSelectedChain("base")}
-            className={`px-4 py-2 rounded-lg font-medium transition ${
-              selectedChain === "base"
-                ? "bg-[#0052FF] text-white"
-                : "bg-zinc-800 text-gray-400 hover:text-white"
-            }`}
-          >
-            Base (cheap)
-          </button>
-        </div>
-
         {/* Routes explanation */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 mb-8">
           <h2 className="font-semibold mb-3">Your Site Routes</h2>
@@ -487,6 +463,30 @@ function UploadContent() {
         ) : (
           /* Upload mode */
           <>
+        {/* Chain selector */}
+        <div className="flex justify-center gap-3 mb-8">
+          <button
+            onClick={() => setSelectedChain("eth")}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              selectedChain === "eth"
+                ? "bg-[#C3FF00] text-black"
+                : "bg-zinc-800 text-gray-400 hover:text-white"
+            }`}
+          >
+            Ethereum
+          </button>
+          <button
+            onClick={() => setSelectedChain("base")}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              selectedChain === "base"
+                ? "bg-[#0052FF] text-white"
+                : "bg-zinc-800 text-gray-400 hover:text-white"
+            }`}
+          >
+            Base (cheap)
+          </button>
+        </div>
+
         {/* Home file upload */}
         <div className="border border-zinc-800 rounded-xl p-6 mb-4">
           <div className="flex items-center justify-between mb-4">
