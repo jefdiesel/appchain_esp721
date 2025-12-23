@@ -1,299 +1,230 @@
 # Chainhost
 
-Host websites permanently on Ethereum calldata.
+Host websites permanently on Ethereum. No servers, no subscriptions, forever yours.
 
-## Overview
+## How It Works
 
-Chainhost is a platform for building and hosting websites directly on the Ethereum blockchain. Sites are inscribed as calldata and served via service workers - no traditional hosting required.
+Chainhost uses Ethereum calldata to store websites permanently on-chain. Your site lives as long as Ethereum exists.
 
-## Features
+```
+1. Claim a name     →  Inscribe "data:,yourname" on Ethereum
+2. Upload HTML      →  Inscribe your HTML as calldata (Ethereum or Base)
+3. Create manifest  →  Link your routes to content with JSON
+4. Go live          →  yourname.chainhost.online serves your site
+```
 
-- **Template-based site builder** - Choose from templates or paste custom HTML
-- **Domain registration** - Register domains via Dynadot API
-- **Automatic DNS/SSL** - Cloudflare Pages integration for seamless setup
-- **Inscription helper** - Converts HTML to calldata, estimates gas
-- **Permanent hosting** - Content lives forever on Ethereum
+### The Stack
+
+| Layer | What | Where |
+|-------|------|-------|
+| **Name** | `data:,yourname` | Ethscription on Ethereum |
+| **Content** | `data:text/html;base64,...` | Calldata on Ethereum or Base |
+| **Manifest** | `{"chainhost":{"home":"0x..."}}` | JSON ethscription |
+| **Gateway** | Cloudflare Worker | Reads chain, serves HTML |
+
+### Name Ownership
+
+Names are claimed via [Ethscriptions](https://ethscriptions.com). First to inscribe `data:,name` owns it forever.
+
+```
+data:,degenjef  →  SHA256  →  0x...  →  Lookup on Ethscriptions API
+```
+
+The owner of that ethscription controls what content appears at `name.chainhost.online`.
+
+### Content Storage
+
+HTML is stored as base64-encoded calldata:
+
+```
+data:text/html;base64,PCFET0NUWVBFIGh0bWw+...
+```
+
+You can inscribe on:
+- **Ethereum** - Most permanent, ~$0.50-2 for small pages
+- **Base** - Cheaper, a few cents, still permanent
+
+### Manifest Format
+
+A JSON ethscription linking routes to content:
+
+```json
+{
+  "chainhost": {
+    "home": "0x1234...abc",
+    "about": "0x5678...def"
+  }
+}
+```
+
+The worker finds your latest manifest and serves the linked content.
+
+## Name Portability
+
+**Your name works on ANY gateway, not just chainhost.online.**
+
+If someone else deploys the worker on `otherdomain.com`:
+- `yourname.otherdomain.com` → same content as `yourname.chainhost.online`
+
+The domain is just the gateway. Your name ownership and content are on-chain and work with any resolver running the open-source worker.
+
+This means:
+- You're not locked to chainhost.online
+- Anyone can run a gateway
+- Your site survives if any single gateway goes down
+- True decentralization
+
+## Self-Hosting
+
+If chainhost.online ever disappears, recover your site in 4 steps:
+
+### 1. Clone the repo
+
+```bash
+git clone https://github.com/jefdiesel/chainhost
+```
+
+### 2. Create a Cloudflare account
+
+Free tier includes:
+- 100 workers
+- 100,000 requests/day
+- No credit card required
+
+### 3. Deploy the worker
+
+```bash
+cd cloudflare-worker
+npm install -g wrangler
+wrangler login
+wrangler deploy
+```
+
+### 4. Add your domain
+
+In Cloudflare dashboard:
+1. Add your domain to Cloudflare
+2. Create a worker route: `*.yourdomain.com/*` → `chainhost-subdomain-router`
+
+Now `anyname.yourdomain.com` resolves on-chain names.
 
 ## Project Structure
 
 ```
 chainhost/
+├── cloudflare-worker/
+│   ├── subdomain-router.js   # The resolver - reads chain, serves sites
+│   └── wrangler.toml         # Cloudflare config
 ├── src/
 │   ├── app/
-│   │   ├── page.tsx              # Landing page with hero, features, pricing
-│   │   ├── layout.tsx            # Root layout with Clerk provider
-│   │   ├── dashboard/
-│   │   │   └── page.tsx          # User dashboard (sites, domains, stats)
-│   │   ├── builder/
-│   │   │   └── page.tsx          # 4-step site builder wizard
-│   │   ├── sign-in/[[...sign-in]]/
-│   │   │   └── page.tsx          # Clerk sign-in
-│   │   ├── sign-up/[[...sign-up]]/
-│   │   │   └── page.tsx          # Clerk sign-up
-│   │   └── api/
-│   │       ├── domains/
-│   │       │   ├── search/route.ts    # Domain availability check
-│   │       │   └── register/route.ts  # Stripe checkout -> registration
-│   │       ├── sites/
-│   │       │   ├── route.ts           # List/create sites
-│   │       │   └── [id]/
-│   │       │       ├── route.ts       # Get/update/delete site
-│   │       │       └── calldata/route.ts  # Generate inscription calldata
-│   │       └── webhooks/
-│   │           └── stripe/route.ts    # Payment processing
-│   ├── lib/
-│   │   ├── supabase.ts           # DB client + TypeScript types
-│   │   ├── stripe.ts             # Checkout sessions, pricing config
-│   │   ├── dynadot.ts            # Domain registration, nameservers
-│   │   ├── cloudflare.ts         # DNS zones, Pages deployment
-│   │   └── inscription.ts        # HTML->calldata, gas estimation, SW generation
-│   └── middleware.ts             # Clerk auth route protection
-├── supabase-schema.sql           # Full database schema
-├── .env.local.example            # Required environment variables
-└── README.md
+│   │   ├── page.tsx          # Landing page
+│   │   ├── register/         # Name claiming UI
+│   │   ├── upload/           # Content upload UI
+│   │   └── builder/          # Template builder
+│   └── lib/
+│       ├── wallet.ts         # Wallet connection
+│       └── templates.ts      # HTML templates
+└── public/
+    └── favicon.png
 ```
 
 ## Tech Stack
 
-| Service | Purpose | Free Tier |
-|---------|---------|-----------|
-| **Next.js 15** | React framework | - |
-| **Clerk** | Authentication | 10,000 MAUs |
-| **Supabase** | PostgreSQL database | 500MB, 50k MAUs |
-| **Stripe** | Payment processing | Pay per transaction |
-| **Dynadot** | Domain registration | Pre-fund account |
-| **Cloudflare** | DNS, Pages, CDN | Unlimited |
+| Component | Purpose |
+|-----------|---------|
+| **Next.js** | Web app at chainhost.online |
+| **Cloudflare Worker** | Subdomain routing (*.chainhost.online) |
+| **Ethscriptions API** | Name ownership lookup |
+| **Ethereum/Base RPC** | Fetch calldata content |
+| **Wagmi/Viem** | Wallet connection |
 
-## User Flow
+No database. No auth. Everything reads from the blockchain.
 
-```
-1. Sign Up (Clerk)
-       ↓
-2. Choose Template or Paste HTML
-       ↓
-3. Customize Content
-       ↓
-4. Search/Register Domain (optional)
-       ↓
-   [Stripe Checkout]
-       ↓
-   [Webhook: Dynadot register -> CF zone -> CF Pages]
-       ↓
-5. Generate Calldata
-       ↓
-6. User Inscribes via Wallet
-       ↓
-7. Save TX Hash -> Site Goes Live
-```
+## Routes
 
-## Database Schema
+Each chainhost site has these routes:
 
-**Tables:**
-- `users` - Clerk ID, email, Stripe customer ID, wallet address
-- `sites` - Name, slug, template, HTML content, inscription TX, status
-- `domains` - Domain, TLD, status, Dynadot order, CF zone ID, expiration
-- `orders` - Stripe session, payment type, amount, status
-- `inscriptions` - TX hash, type, size, gas, cost
-- `templates` - Pre-built site templates
+| Route | Description |
+|-------|-------------|
+| `/` | Home page (from manifest "home") |
+| `/about` | About page (from manifest "about") |
+| `/previous` | History of all chainhost content |
+| `/recovery` | Self-hosting instructions |
 
-## Setup
+## Costs
 
-### 1. Clone and install
+| Action | Chain | Cost |
+|--------|-------|------|
+| Claim name | Ethereum | ~$0.01 (just "data:,name") |
+| Upload HTML | Ethereum | ~$0.50-2 (depends on size) |
+| Upload HTML | Base | ~$0.01-0.05 |
+| Create manifest | Ethereum | ~$0.10 |
+
+All costs are just gas fees. No platform fees, ever.
+
+## Local Development
 
 ```bash
-git clone https://github.com/yourusername/chainhost.git
-cd chainhost
+# Install dependencies
 npm install
-```
 
-### 2. Configure environment
-
-```bash
-cp .env.local.example .env.local
-```
-
-### 3. Set up Supabase
-
-1. Create project at [supabase.com](https://supabase.com)
-2. Go to SQL Editor
-3. Run the contents of `supabase-schema.sql`
-4. Copy keys from Settings -> API to `.env.local`
-
-### 4. Set up Clerk
-
-1. Create app at [clerk.com](https://clerk.com)
-2. Copy Publishable Key and Secret Key to `.env.local`
-3. Configure sign-in methods (email, Google, etc.)
-
-### 5. Set up Stripe
-
-1. Get API keys from [stripe.com](https://stripe.com)
-2. Create webhook endpoint: `https://yourdomain.com/api/webhooks/stripe`
-3. Subscribe to `checkout.session.completed` event
-4. Copy webhook secret to `.env.local`
-
-### 6. Set up Dynadot
-
-1. Create account at [dynadot.com](https://dynadot.com)
-2. Fund account balance for domain purchases
-3. Get API key from Account -> API
-4. Add to `.env.local`
-
-### 7. Set up Cloudflare
-
-1. Create account at [cloudflare.com](https://cloudflare.com)
-2. Get Account ID from dashboard URL
-3. Create API token with Zone and Pages permissions
-4. Add to `.env.local`
-
-### 8. Run dev server
-
-```bash
+# Run Next.js app
 npm run dev
+
+# Deploy worker (requires wrangler login)
+cd cloudflare-worker
+npx wrangler deploy
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
+## How the Worker Resolves Sites
 
-## Environment Variables
+```javascript
+// 1. Extract name from subdomain
+const name = hostname.split('.')[0];  // "degenjef" from "degenjef.chainhost.online"
 
-```bash
-# Clerk Auth
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_xxx
-CLERK_SECRET_KEY=sk_test_xxx
+// 2. Check if name is claimed
+const nameSha = sha256(`data:,${name}`);
+const nameData = await fetch(`ethscriptions.com/exists/${nameSha}`);
+const owner = nameData.current_owner;
 
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=xxx
-SUPABASE_SERVICE_ROLE_KEY=xxx
+// 3. Find owner's chainhost manifest
+const manifests = await fetch(`ethscriptions.com?owner=${owner}&type=json`);
+const manifest = manifests.find(m => m.chainhost);
 
-# Stripe
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_xxx
-STRIPE_SECRET_KEY=sk_test_xxx
-STRIPE_WEBHOOK_SECRET=whsec_xxx
+// 4. Get content for route
+const txHash = manifest.chainhost[route];  // "home", "about", etc.
 
-# Dynadot
-DYNADOT_API_KEY=xxx
+// 5. Fetch HTML from calldata
+const tx = await rpc.getTransaction(txHash);
+const html = decodeCalldata(tx.input);
 
-# Cloudflare
-CLOUDFLARE_API_TOKEN=xxx
-CLOUDFLARE_ACCOUNT_ID=xxx
-
-# App
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+// 6. Serve it
+return new Response(html, { headers: { 'Content-Type': 'text/html' } });
 ```
 
-## API Reference
+## FAQ
 
-### Domains
+**Q: What if Ethscriptions API goes down?**
+A: The worker falls back to direct RPC calls to Ethereum and Base nodes.
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/domains/search?domain=xxx` | GET | Check availability across TLDs |
-| `/api/domains/register` | POST | Start Stripe checkout for domain |
+**Q: Can I use my own domain?**
+A: Yes! Deploy the worker and point your domain to it. Names work on any gateway.
 
-### Sites
+**Q: How big can my site be?**
+A: Technically unlimited, but gas costs scale with size. Keep it under 50KB for reasonable costs.
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/sites` | GET | List user's sites |
-| `/api/sites` | POST | Create new site |
-| `/api/sites/[id]` | GET | Get site details |
-| `/api/sites/[id]` | PATCH | Update site (content, TX hash) |
-| `/api/sites/[id]` | DELETE | Delete site |
-| `/api/sites/[id]/calldata` | GET | Generate inscription calldata |
+**Q: Can I update my site?**
+A: Yes. Inscribe new content, then inscribe a new manifest pointing to it. The worker always uses your latest manifest.
 
-### Webhooks
+**Q: What about images/CSS/JS?**
+A: Inline everything into a single HTML file, or host assets elsewhere and reference them.
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/webhooks/stripe` | POST | Handle payment events |
+## Links
 
-## Domain Pricing
-
-| TLD | Registration | Renewal | Our Cost |
-|-----|--------------|---------|----------|
-| .com | $14.99 | $14.99 | $9.99 |
-| .xyz | $9.99 | $12.99 | $2.99 |
-| .net | $14.99 | $14.99 | $10.99 |
-| .org | $14.99 | $14.99 | $10.99 |
-| .io | $49.99 | $49.99 | $34.99 |
-
-## How Inscription Works
-
-1. **Minify HTML** - Remove whitespace, compress
-2. **Encode Base64** - `btoa(html)`
-3. **Create Data URI** - `data:text/html;base64,{base64}`
-4. **Convert to Hex** - Each character to hex bytes
-5. **Send Transaction** - Calldata = hex, to = self, value = 0
-6. **Service Worker** - Fetches TX, decodes, serves HTML
-
-Gas estimate: ~16 gas per byte + 21000 base = ~$0.30 for 10KB page
-
-## Key Files
-
-### `src/lib/inscription.ts`
-
-```typescript
-// Convert HTML to calldata
-htmlToCalldata(html: string): string
-
-// Estimate gas cost
-estimateGas(html: string): { bytes, gasUnits, estimatedCostUsd }
-
-// Generate service worker for a site
-generateServiceWorker(wallet: string, routes: Record<string, string>): string
-
-// Validate HTML for inscription (check problematic chars)
-validateForInscription(html: string): { valid: boolean, issues: string[] }
-```
-
-### `src/lib/dynadot.ts`
-
-```typescript
-// Check if domain is available
-checkDomainAvailability(domain: string): Promise<{ available, price }>
-
-// Register domain (requires funded account)
-registerDomain(domain: string, years: number): Promise<{ success, expiration }>
-
-// Point domain to Cloudflare
-setNameservers(domain: string, nameservers: string[]): Promise<boolean>
-```
-
-### `src/lib/cloudflare.ts`
-
-```typescript
-// Add domain to Cloudflare
-addZone(domain: string): Promise<{ zoneId, nameservers }>
-
-// Create Pages project for hosting
-createPagesProject(name: string): Promise<{ projectName, subdomain }>
-
-// Connect custom domain to Pages
-addCustomDomain(project: string, domain: string): Promise<{ success }>
-
-// Deploy files to Pages
-deployToPages(project: string, files: Record<string, string>): Promise<{ url }>
-```
-
-## Deployment
-
-### Vercel (Recommended)
-
-```bash
-npm install -g vercel
-vercel
-```
-
-Set environment variables in Vercel dashboard.
-
-### Cloudflare Pages
-
-1. Connect GitHub repo
-2. Build command: `npm run build`
-3. Output directory: `.next`
-4. Set environment variables
+- **Live**: [chainhost.online](https://chainhost.online)
+- **Example**: [degenjef.chainhost.online](https://degenjef.chainhost.online)
+- **Ethscriptions**: [ethscriptions.com](https://ethscriptions.com)
 
 ## License
 
-MIT
+MIT - Do whatever you want with it.
