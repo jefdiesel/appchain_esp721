@@ -64,6 +64,16 @@ export default {
         });
       }
 
+      // Handle /tx/0x... route for viewing transaction content
+      if (path.startsWith('/tx/')) {
+        const txHash = path.slice(4); // Remove '/tx/'
+        if (!txHash.startsWith('0x') || txHash.length < 10) {
+          return new Response('Invalid transaction hash', { status: 400 });
+        }
+        const pixelArt = url.searchParams.get('pixel') === '1';
+        return await serveTxContent(txHash, pixelArt, name);
+      }
+
       // 3. Find owner's chainhost manifest for this specific name
       const manifest = await findManifest(owner, name);
 
@@ -119,6 +129,163 @@ async function sha256(message) {
   const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function serveTxContent(txHash, pixelArt, name) {
+  // Fetch the raw content from the transaction
+  const content = await fetchTxContentRaw(txHash);
+
+  if (!content) {
+    return new Response('Content not found', { status: 404 });
+  }
+
+  // Check if it's an image data URI
+  const isImage = content.dataUri && content.dataUri.startsWith('data:image/');
+
+  if (isImage) {
+    // Extract mime type
+    const mimeMatch = content.dataUri.match(/^data:([^;,]+)/);
+    const mimeType = mimeMatch ? mimeMatch[1] : 'image/png';
+
+    if (pixelArt) {
+      // Wrap in HTML with pixel art scaling
+      const html = `<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pixel Art - ${name}</title>
+<link rel="icon" href="${FAVICON}">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+img{
+  image-rendering:pixelated;
+  image-rendering:crisp-edges;
+  max-width:100%;
+  max-height:90vh;
+  width:auto;
+  height:auto;
+}
+.container{text-align:center}
+.tx{font-family:monospace;color:#555;font-size:0.75rem;margin-top:1rem}
+.tx a{color:#C3FF00}
+</style>
+</head><body>
+<div class="container">
+<img src="${content.dataUri}" alt="Pixel Art">
+<p class="tx"><a href="https://etherscan.io/tx/${txHash}" target="_blank">${txHash.slice(0,20)}...</a></p>
+</div>
+</body></html>`;
+      return new Response(html, {
+        headers: { 'Content-Type': 'text/html' },
+      });
+    } else {
+      // Serve image directly
+      const base64Match = content.dataUri.match(/^data:[^;]+;base64,(.+)$/);
+      if (base64Match) {
+        const binary = atob(base64Match[1]);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        return new Response(bytes, {
+          headers: { 'Content-Type': mimeType },
+        });
+      }
+      // Non-base64 image, redirect to data URI isn't possible, wrap in HTML
+      const html = `<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<title>Image - ${name}</title>
+</head><body style="margin:0;background:#000;display:flex;align-items:center;justify-content:center;min-height:100vh">
+<img src="${content.dataUri}" style="max-width:100%;max-height:100vh">
+</body></html>`;
+      return new Response(html, {
+        headers: { 'Content-Type': 'text/html' },
+      });
+    }
+  }
+
+  // For HTML content
+  if (content.dataUri && content.dataUri.includes('text/html')) {
+    return new Response(content.decoded || content.dataUri, {
+      headers: { 'Content-Type': 'text/html' },
+    });
+  }
+
+  // For other content, show as text
+  return new Response(content.decoded || content.dataUri || 'Unknown content', {
+    headers: { 'Content-Type': 'text/plain' },
+  });
+}
+
+async function fetchTxContentRaw(txHash) {
+  // Try Ethscriptions API first
+  try {
+    const res = await fetch(`${ETHSCRIPTIONS_API}/ethscriptions/${txHash}`);
+    const data = await res.json();
+
+    if (data.result?.content_uri) {
+      const uri = data.result.content_uri;
+      return { dataUri: uri, decoded: decodeDataUri(uri) };
+    }
+  } catch (e) {
+    // Try RPC
+  }
+
+  // Try Ethereum RPC
+  const ethResult = await fetchFromRPCRaw(ETH_RPC, txHash);
+  if (ethResult) return ethResult;
+
+  // Try Base RPC
+  const baseResult = await fetchFromRPCRaw(BASE_RPC, txHash);
+  if (baseResult) return baseResult;
+
+  return null;
+}
+
+async function fetchFromRPCRaw(rpcUrl, txHash) {
+  try {
+    const res = await fetch(rpcUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'eth_getTransactionByHash',
+        params: [txHash],
+        id: 1,
+      }),
+    });
+    const data = await res.json();
+
+    if (!data.result?.input) return null;
+
+    const hex = data.result.input;
+    if (!hex || hex === '0x') return null;
+
+    const bytes = [];
+    for (let i = 2; i < hex.length; i += 2) {
+      bytes.push(parseInt(hex.substr(i, 2), 16));
+    }
+    const decoded = new TextDecoder().decode(new Uint8Array(bytes));
+
+    if (decoded.startsWith('data:')) {
+      return { dataUri: decoded, decoded: decodeDataUri(decoded) };
+    }
+    return { dataUri: null, decoded };
+  } catch (e) {
+    return null;
+  }
+}
+
+function decodeDataUri(uri) {
+  if (!uri || !uri.startsWith('data:')) return null;
+  const match = uri.match(/^data:([^;,]+)?(?:;base64)?,(.*)$/);
+  if (match) {
+    if (uri.includes(';base64,')) return atob(match[2]);
+    return decodeURIComponent(match[2]);
+  }
+  return null;
 }
 
 async function findManifest(owner, name) {
