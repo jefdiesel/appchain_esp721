@@ -37,11 +37,25 @@ export default {
 
     try {
       // 1. Check if name is claimed (data:,name exists)
-      const nameSha = await sha256(`data:,${name}`);
-      const nameRes = await fetch(`${ETHSCRIPTIONS_API}/ethscriptions/exists/0x${nameSha}`);
-      const nameData = await nameRes.json();
+      // Try multiple case variations since subdomains are case-insensitive
+      const caseVariations = [
+        name.toLowerCase(),
+        name.charAt(0).toUpperCase() + name.slice(1).toLowerCase(), // Title case
+        name.toUpperCase(),
+      ];
 
-      if (!nameData.result?.exists) {
+      let nameData = null;
+      for (const variant of caseVariations) {
+        const nameSha = await sha256(`data:,${variant}`);
+        const nameRes = await fetch(`${ETHSCRIPTIONS_API}/ethscriptions/exists/0x${nameSha}`);
+        const data = await nameRes.json();
+        if (data.result?.exists) {
+          nameData = data;
+          break;
+        }
+      }
+
+      if (!nameData?.result?.exists) {
         return new Response(notClaimedPage(name), {
           status: 404,
           headers: { 'Content-Type': 'text/html' },
