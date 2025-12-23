@@ -46,18 +46,20 @@ You can inscribe on:
 
 ### Manifest Format
 
-A JSON ethscription linking routes to content:
+A JSON ethscription linking your subdomain's routes to content:
 
 ```json
 {
   "chainhost": {
-    "home": "0x1234...abc",
-    "about": "0x5678...def"
+    "yourname": {
+      "home": "0x1234...abc",
+      "about": "0x5678...def"
+    }
   }
 }
 ```
 
-The worker finds your latest manifest and serves the linked content.
+The manifest includes the subdomain name, so you can own multiple names and each will have its own independent content. The worker looks for manifests matching the requested subdomain.
 
 ## Name Portability
 
@@ -187,12 +189,12 @@ const nameSha = sha256(`data:,${name}`);
 const nameData = await fetch(`ethscriptions.com/exists/${nameSha}`);
 const owner = nameData.current_owner;
 
-// 3. Find owner's chainhost manifest
+// 3. Find owner's chainhost manifest for this specific name
 const manifests = await fetch(`ethscriptions.com?owner=${owner}&type=json`);
-const manifest = manifests.find(m => m.chainhost);
+const manifest = manifests.find(m => m.chainhost && m.chainhost[name]);
 
 // 4. Get content for route
-const txHash = manifest.chainhost[route];  // "home", "about", etc.
+const txHash = manifest.chainhost[name][route];  // "home", "about", etc.
 
 // 5. Fetch HTML from calldata
 const tx = await rpc.getTransaction(txHash);

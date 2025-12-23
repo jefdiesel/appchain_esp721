@@ -220,16 +220,18 @@ function UploadContent() {
         method: "eth_requestAccounts",
       })) as string[];
 
-      // Build manifest
-      const manifest: Record<string, Record<string, string>> = {
-        chainhost: {},
+      // Build manifest with name included
+      const manifest: Record<string, Record<string, Record<string, string>>> = {
+        chainhost: {
+          [username]: {},
+        },
       };
 
       if (homeFile?.txHash) {
-        manifest.chainhost.home = homeFile.txHash;
+        manifest.chainhost[username].home = homeFile.txHash;
       }
       if (aboutFile?.txHash) {
-        manifest.chainhost.about = aboutFile.txHash;
+        manifest.chainhost[username].about = aboutFile.txHash;
       }
 
       // Inscribe on Ethereum (manifest always on ETH for permanence)

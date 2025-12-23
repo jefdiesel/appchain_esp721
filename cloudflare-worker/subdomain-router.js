@@ -58,14 +58,14 @@ export default {
       }
 
       if (path === '/previous') {
-        const history = await getInscriptionHistory(owner);
+        const history = await getInscriptionHistory(owner, name);
         return new Response(previousPage(name, owner, history), {
           headers: { 'Content-Type': 'text/html' },
         });
       }
 
-      // 3. Find owner's chainhost manifest
-      const manifest = await findManifest(owner);
+      // 3. Find owner's chainhost manifest for this specific name
+      const manifest = await findManifest(owner, name);
 
       if (!manifest) {
         return new Response(noManifestPage(name, owner), {
@@ -121,7 +121,7 @@ async function sha256(message) {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-async function findManifest(owner) {
+async function findManifest(owner, name) {
   try {
     const res = await fetch(
       `${ETHSCRIPTIONS_API}/ethscriptions?current_owner=${owner}&mime_subtype=json&per_page=50`
@@ -130,12 +130,31 @@ async function findManifest(owner) {
 
     if (!data.result?.length) return null;
 
+    // First pass: look for name-specific manifests (new format)
     for (const eth of data.result) {
       try {
         const content = await fetchEthscriptionContent(eth.transaction_hash);
         if (content) {
           const parsed = JSON.parse(content);
-          if (parsed.chainhost) {
+          // New format: {"chainhost": {"degenjef": {"home": "0x..."}}}
+          if (parsed.chainhost && parsed.chainhost[name]) {
+            return parsed.chainhost[name];
+          }
+        }
+      } catch (e) {
+        // Not valid JSON or not chainhost manifest
+      }
+    }
+
+    // Second pass: fallback to old format (no name key) for backward compatibility
+    // Only use if user has a single name or this is their only manifest
+    for (const eth of data.result) {
+      try {
+        const content = await fetchEthscriptionContent(eth.transaction_hash);
+        if (content) {
+          const parsed = JSON.parse(content);
+          // Old format: {"chainhost": {"home": "0x..."}}
+          if (parsed.chainhost && parsed.chainhost.home && !Object.keys(parsed.chainhost).some(k => typeof parsed.chainhost[k] === 'object')) {
             return parsed.chainhost;
           }
         }
@@ -143,6 +162,7 @@ async function findManifest(owner) {
         // Not valid JSON or not chainhost manifest
       }
     }
+
     return null;
   } catch (e) {
     console.error('Manifest lookup error:', e);
@@ -223,7 +243,7 @@ async function fetchFromRPC(rpcUrl, txHash) {
   }
 }
 
-async function getInscriptionHistory(owner) {
+async function getInscriptionHistory(owner, name) {
   try {
     // Get all chainhost manifests from this owner
     const res = await fetch(
@@ -235,21 +255,34 @@ async function getInscriptionHistory(owner) {
 
     const history = [];
 
-    // Extract all tx hashes from chainhost manifests
+    // Extract tx hashes from chainhost manifests for this specific name
     for (const eth of data.result) {
       try {
         const content = await fetchEthscriptionContent(eth.transaction_hash);
         if (content) {
           const parsed = JSON.parse(content);
           if (parsed.chainhost) {
-            // Add each route's content to history
-            for (const [route, txHash] of Object.entries(parsed.chainhost)) {
-              history.push({
-                txHash,
-                route,
-                manifestTx: eth.transaction_hash,
-                timestamp: eth.block_timestamp,
-              });
+            // New format: {"chainhost": {"degenjef": {"home": "0x..."}}}
+            if (parsed.chainhost[name]) {
+              for (const [route, txHash] of Object.entries(parsed.chainhost[name])) {
+                history.push({
+                  txHash,
+                  route,
+                  manifestTx: eth.transaction_hash,
+                  timestamp: eth.block_timestamp,
+                });
+              }
+            }
+            // Old format fallback: {"chainhost": {"home": "0x..."}}
+            else if (parsed.chainhost.home && !Object.keys(parsed.chainhost).some(k => typeof parsed.chainhost[k] === 'object')) {
+              for (const [route, txHash] of Object.entries(parsed.chainhost)) {
+                history.push({
+                  txHash,
+                  route,
+                  manifestTx: eth.transaction_hash,
+                  timestamp: eth.block_timestamp,
+                });
+              }
             }
           }
         }
