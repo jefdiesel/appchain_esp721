@@ -10,7 +10,10 @@
  */
 
 const ETHSCRIPTIONS_API = 'https://api.ethscriptions.com/v2';
+const BASE_RPC = 'https://mainnet.base.org';
+const ETH_RPC = 'https://eth.llamarpc.com';
 const GIT_REPO = 'https://github.com/jefdiesel/chainhost';
+const FAVICON = 'https://chainhost.online/favicon.png';
 
 export default {
   async fetch(request, env) {
@@ -148,24 +151,74 @@ async function findManifest(owner) {
 }
 
 async function fetchEthscriptionContent(txHash) {
+  // Try Ethscriptions API first (Ethereum)
   try {
     const res = await fetch(`${ETHSCRIPTIONS_API}/ethscriptions/${txHash}`);
     const data = await res.json();
 
-    if (!data.result?.content_uri) return null;
+    if (data.result?.content_uri) {
+      const uri = data.result.content_uri;
+      if (uri.startsWith('data:')) {
+        const match = uri.match(/^data:([^;,]+)?(?:;base64)?,(.*)$/);
+        if (match) {
+          if (uri.includes(';base64,')) return atob(match[2]);
+          return decodeURIComponent(match[2]);
+        }
+      }
+      return uri;
+    }
+  } catch (e) {
+    // Ethscriptions API failed, try RPC
+  }
 
-    const uri = data.result.content_uri;
+  // Try Ethereum RPC
+  const ethContent = await fetchFromRPC(ETH_RPC, txHash);
+  if (ethContent) return ethContent;
 
-    if (uri.startsWith('data:')) {
-      const match = uri.match(/^data:([^;,]+)?(?:;base64)?,(.*)$/);
+  // Try Base RPC
+  const baseContent = await fetchFromRPC(BASE_RPC, txHash);
+  if (baseContent) return baseContent;
+
+  return null;
+}
+
+async function fetchFromRPC(rpcUrl, txHash) {
+  try {
+    const res = await fetch(rpcUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'eth_getTransactionByHash',
+        params: [txHash],
+        id: 1,
+      }),
+    });
+    const data = await res.json();
+
+    if (!data.result?.input) return null;
+
+    // Decode calldata to string
+    const hex = data.result.input;
+    if (!hex || hex === '0x') return null;
+
+    const bytes = [];
+    for (let i = 2; i < hex.length; i += 2) {
+      bytes.push(parseInt(hex.substr(i, 2), 16));
+    }
+    const decoded = new TextDecoder().decode(new Uint8Array(bytes));
+
+    // Parse data URI
+    if (decoded.startsWith('data:')) {
+      const match = decoded.match(/^data:([^;,]+)?(?:;base64)?,(.*)$/);
       if (match) {
-        if (uri.includes(';base64,')) return atob(match[2]);
+        if (decoded.includes(';base64,')) return atob(match[2]);
         return decodeURIComponent(match[2]);
       }
     }
-    return uri;
+    return decoded;
   } catch (e) {
-    console.error('Content fetch error:', e);
+    console.error(`RPC fetch error (${rpcUrl}):`, e);
     return null;
   }
 }
@@ -218,22 +271,39 @@ function notClaimedPage(name) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${name} - Available</title>
+<link rel="icon" href="${FAVICON}">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:system-ui,sans-serif;background:#000;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center}
-.c{text-align:center;padding:40px;max-width:400px}
+body{font-family:system-ui,sans-serif;background:#000;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.c{text-align:center;max-width:500px}
 h1{font-size:2.5rem;color:#C3FF00;margin-bottom:0.5rem}
-.name{font-family:monospace;background:#111;padding:8px 16px;border-radius:8px;display:inline-block;margin:1rem 0;font-size:1.25rem;border:1px solid #333}
-p{color:#888;margin-bottom:1.5rem}
-.btn{display:inline-block;background:#C3FF00;color:#000;padding:12px 24px;border-radius:8px;font-weight:600;text-decoration:none}
+.name{font-family:monospace;background:#111;padding:12px 20px;border-radius:8px;display:inline-block;margin:1.5rem 0;font-size:1.25rem;border:1px solid #333}
+.desc{color:#888;margin-bottom:2rem;line-height:1.6}
+.btn{display:inline-block;background:#C3FF00;color:#000;padding:14px 32px;border-radius:8px;font-weight:700;text-decoration:none;font-size:1rem;margin-bottom:2rem}
 .btn:hover{background:#d4ff4d}
+.how{background:#111;border:1px solid #222;border-radius:12px;padding:24px;text-align:left;margin-top:1rem}
+.how h3{color:#C3FF00;font-size:0.75rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:1rem}
+.step{display:flex;gap:12px;margin-bottom:12px;font-size:0.875rem}
+.step:last-child{margin-bottom:0}
+.num{color:#C3FF00;font-weight:700}
+.step span{color:#888}
+.footer{margin-top:2rem;font-size:0.75rem;color:#444}
+.footer a{color:#666}
 </style>
 </head><body>
 <div class="c">
-<h1>Available</h1>
-<div class="name">data:,${name}</div>
-<p>Claim this name on Ethscriptions</p>
-<a href="https://chainhost.online/register" class="btn">Claim ${name}</a>
+<h1>Available!</h1>
+<div class="name">${name}.chainhost.online</div>
+<p class="desc">This name isn't claimed yet. Inscribe it on Ethereum and host your site forever—no servers, no renewals, just permanent on-chain hosting.</p>
+<a href="https://chainhost.online/register" class="btn">Claim ${name} for Free</a>
+<div class="how">
+<h3>How it works</h3>
+<div class="step"><span class="num">1.</span><span>Connect wallet & inscribe <code style="background:#222;padding:2px 6px;border-radius:4px;color:#C3FF00">data:,${name}</code></span></div>
+<div class="step"><span class="num">2.</span><span>Upload your HTML (Ethereum or Base)</span></div>
+<div class="step"><span class="num">3.</span><span>Create manifest linking routes to content</span></div>
+<div class="step"><span class="num">4.</span><span>Live forever at ${name}.chainhost.online</span></div>
+</div>
+<p class="footer">Powered by <a href="https://ethscriptions.com" target="_blank">Ethscriptions</a> · <a href="https://github.com/jefdiesel/chainhost" target="_blank">GitHub</a></p>
 </div>
 </body></html>`;
 }
@@ -245,19 +315,33 @@ function noManifestPage(name, owner) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${name}</title>
+<link rel="icon" href="${FAVICON}">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:system-ui,sans-serif;background:#000;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center}
-.c{text-align:center;padding:40px}
-h1{font-size:2rem;margin-bottom:0.5rem}
-.owner{font-family:monospace;color:#C3FF00;font-size:0.875rem}
-p{color:#888;margin:1.5rem 0}
+body{font-family:system-ui,sans-serif;background:#000;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.c{text-align:center;max-width:500px}
+h1{font-size:2.5rem;margin-bottom:0.5rem}
+.owner{font-family:monospace;color:#C3FF00;font-size:0.875rem;background:#111;padding:8px 16px;border-radius:8px;display:inline-block;margin:1rem 0;border:1px solid #333}
+.desc{color:#888;margin:1.5rem 0;line-height:1.6}
+.btn{display:inline-block;background:#C3FF00;color:#000;padding:14px 32px;border-radius:8px;font-weight:700;text-decoration:none;font-size:1rem;margin-bottom:2rem}
+.btn:hover{background:#d4ff4d}
+.info{background:#111;border:1px solid #222;border-radius:12px;padding:24px;text-align:left;margin-top:1rem}
+.info h3{color:#C3FF00;font-size:0.75rem;text-transform:uppercase;letter-spacing:1px;margin-bottom:1rem}
+.info p{color:#888;font-size:0.875rem;line-height:1.6;margin:0}
+.footer{margin-top:2rem;font-size:0.75rem;color:#444}
+.footer a{color:#666}
 </style>
 </head><body>
 <div class="c">
 <h1>${name}</h1>
-<div class="owner">${short}</div>
-<p>No manifest. Upload your site on Chainhost.</p>
+<div class="owner">owned by ${short}</div>
+<p class="desc">This name is claimed but no site is uploaded yet. If this is yours, upload your HTML and create a manifest to go live.</p>
+<a href="https://chainhost.online/upload?name=${name}" class="btn">Upload Site</a>
+<div class="info">
+<h3>Next Steps</h3>
+<p>Upload your HTML files (home page, about page, etc.) and inscribe them on Ethereum or Base. Then create a manifest to link your routes. Your site will be permanently accessible at ${name}.chainhost.online</p>
+</div>
+<p class="footer"><a href="https://chainhost.online" target="_blank">chainhost.online</a> · <a href="https://github.com/jefdiesel/chainhost" target="_blank">GitHub</a></p>
 </div>
 </body></html>`;
 }
@@ -268,6 +352,7 @@ function notFoundPage(name, route) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>404 - ${name}</title>
+<link rel="icon" href="${FAVICON}">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:system-ui,sans-serif;background:#000;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center}
@@ -292,6 +377,7 @@ function contentErrorPage(name, txHash) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Error - ${name}</title>
+<link rel="icon" href="${FAVICON}">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:system-ui,sans-serif;background:#000;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center}
@@ -315,6 +401,7 @@ function errorPage(msg) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Error</title>
+<link rel="icon" href="${FAVICON}">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:system-ui,sans-serif;background:#000;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center}
@@ -350,6 +437,7 @@ function previousPage(name, owner, history) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Previous - ${name}</title>
+<link rel="icon" href="${FAVICON}">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:system-ui,sans-serif;background:#000;color:#fff;min-height:100vh;padding:60px 20px}
@@ -384,6 +472,7 @@ function recoveryPage(name, owner) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Recovery - ${name}</title>
+<link rel="icon" href="${FAVICON}">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:system-ui,sans-serif;background:#000;color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center}

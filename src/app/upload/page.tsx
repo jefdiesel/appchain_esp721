@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useUser } from "@clerk/nextjs";
-import { redirect } from "next/navigation";
 
 type ChainOption = "eth" | "base";
 
@@ -16,25 +15,17 @@ interface PageFile {
   inscribing?: boolean;
 }
 
-export default function UploadPage() {
-  const { isLoaded, isSignedIn } = useUser();
-  const [username, setUsername] = useState<string | null>(null);
+function UploadContent() {
+  const searchParams = useSearchParams();
+  const [username, setUsername] = useState<string | null>(searchParams.get("name"));
   const [homeFile, setHomeFile] = useState<PageFile | null>(null);
   const [aboutFile, setAboutFile] = useState<PageFile | null>(null);
-  const [selectedChain, setSelectedChain] = useState<ChainOption>("base");
+  const [selectedChain, setSelectedChain] = useState<ChainOption>("eth");
   const [manifestTx, setManifestTx] = useState<string | null>(null);
   const [inscribingManifest, setInscribingManifest] = useState(false);
   const [error, setError] = useState("");
 
-  // Fetch user data
-  useEffect(() => {
-    fetch("/api/user")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.username) setUsername(data.username);
-      })
-      .catch(console.error);
-  }, []);
+  // Username is entered by user, no need to fetch
 
   // Handle file upload
   const handleFileUpload = (
@@ -200,16 +191,7 @@ export default function UploadPage() {
       })) as string;
 
       setManifestTx(tx);
-
-      // Save to database
-      await fetch("/api/manifest", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          manifestTx: tx,
-          routes: manifest.chainhost,
-        }),
-      });
+      // Manifest is now on-chain, the CF worker will find it
     } catch (e) {
       setError(e instanceof Error ? e.message : "Manifest inscription failed");
     } finally {
@@ -223,18 +205,6 @@ export default function UploadPage() {
       ? `https://etherscan.io/tx/${tx}`
       : `https://basescan.org/tx/${tx}`;
 
-  if (!isLoaded) {
-    return (
-      <div className="min-h-screen flex items-center justify-center text-gray-500">
-        Loading...
-      </div>
-    );
-  }
-
-  if (!isSignedIn) {
-    redirect("/sign-in");
-  }
-
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Nav */}
@@ -245,24 +215,47 @@ export default function UploadPage() {
             <span className="text-[#C3FF00]">HOST</span>
           </Link>
           <Link
-            href="/dashboard"
+            href="/register"
             className="text-sm text-gray-400 hover:text-white"
           >
-            Dashboard
+            Register Name
           </Link>
         </div>
       </nav>
 
       <main className="max-w-2xl mx-auto px-6 py-12">
         <h1 className="text-3xl font-bold text-center mb-2">Upload Your Site</h1>
-        {username && (
-          <p className="text-center text-gray-500 mb-8">
-            <span className="text-[#C3FF00]">{username}</span>.chainhost.online
+
+        {/* Username input */}
+        <div className="mb-8">
+          <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden focus-within:border-[#C3FF00] max-w-md mx-auto">
+            <input
+              type="text"
+              value={username || ""}
+              onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s/g, ""))}
+              className="flex-1 bg-transparent px-4 py-3 text-lg focus:outline-none text-center"
+              placeholder="yourname"
+              maxLength={32}
+            />
+            <span className="text-gray-500 pr-4">.chainhost.online</span>
+          </div>
+          <p className="text-center text-xs text-gray-600 mt-2">
+            Enter the name you claimed on Ethscriptions
           </p>
-        )}
+        </div>
 
         {/* Chain selector */}
         <div className="flex justify-center gap-3 mb-8">
+          <button
+            onClick={() => setSelectedChain("eth")}
+            className={`px-4 py-2 rounded-lg font-medium transition ${
+              selectedChain === "eth"
+                ? "bg-[#C3FF00] text-black"
+                : "bg-zinc-800 text-gray-400 hover:text-white"
+            }`}
+          >
+            Ethereum
+          </button>
           <button
             onClick={() => setSelectedChain("base")}
             className={`px-4 py-2 rounded-lg font-medium transition ${
@@ -272,16 +265,6 @@ export default function UploadPage() {
             }`}
           >
             Base (cheap)
-          </button>
-          <button
-            onClick={() => setSelectedChain("eth")}
-            className={`px-4 py-2 rounded-lg font-medium transition ${
-              selectedChain === "eth"
-                ? "bg-[#627EEA] text-white"
-                : "bg-zinc-800 text-gray-400 hover:text-white"
-            }`}
-          >
-            Ethereum
           </button>
         </div>
 
@@ -474,16 +457,25 @@ export default function UploadPage() {
             >
               {username}.chainhost.online →
             </a>
-            <p className="text-xs text-gray-500 font-mono">{manifestTx}</p>
+            <p className="text-xs text-gray-500 font-mono mb-2">{manifestTx}</p>
+            <p className="text-xs text-gray-400">Wait ~30 seconds for the block to confirm</p>
             <Link
-              href="/dashboard"
+              href="/register"
               className="inline-block mt-4 px-6 py-2 border border-zinc-700 rounded-lg hover:border-[#C3FF00]"
             >
-              Go to Dashboard
+              Register Another Name
             </Link>
           </div>
         )}
       </main>
     </div>
+  );
+}
+
+export default function UploadPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-500">Loading...</div>}>
+      <UploadContent />
+    </Suspense>
   );
 }

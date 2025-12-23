@@ -1,11 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { useUser } from "@clerk/nextjs";
-import { redirect } from "next/navigation";
-import { inscribeWithUserWallet, getChainInfo, setChain, type ChainOption } from "@/lib/wallet";
+import { inscribeWithUserWallet, setChain, type ChainOption } from "@/lib/wallet";
 import { TEMPLATE_DEFINITIONS, renderTemplate, type Post } from "@/lib/templates";
 
 // Banner image component that fetches from ethscriptions API
@@ -634,8 +632,7 @@ function generateBlogPost(data: {
 </html>`;
 }
 
-export default function BuilderPage() {
-  const { isLoaded, isSignedIn } = useUser();
+function BuilderContent() {
   const searchParams = useSearchParams();
   const initialStep = (searchParams.get("step") as Step) || "template";
   const [step, setStep] = useState<Step>(initialStep);
@@ -766,18 +763,6 @@ export default function BuilderPage() {
   }, [selectedTemplate]);
   const [customHtml, setCustomHtml] = useState("");
   const [generatedHtml, setGeneratedHtml] = useState("");
-
-  if (!isLoaded) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-500">Loading...</div>
-      </div>
-    );
-  }
-
-  if (!isSignedIn) {
-    redirect("/sign-in");
-  }
 
   return (
     <div className="min-h-screen">
@@ -1775,5 +1760,13 @@ export default function BuilderPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function BuilderPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-500">Loading...</div>}>
+      <BuilderContent />
+    </Suspense>
   );
 }

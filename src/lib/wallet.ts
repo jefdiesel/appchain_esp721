@@ -53,17 +53,17 @@ export async function getUserWalletClient() {
   const CHAIN = CHAINS[selectedChain];
 
   // Request account access
-  const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+  const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' }) as string[];
 
   if (!accounts || accounts.length === 0) {
     throw new Error('No accounts found. Please connect your wallet.');
   }
 
   // Check if on correct chain
-  const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+  const chainId = await window.ethereum.request({ method: 'eth_chainId' }) as string;
   const expectedChainId = CHAIN.id;
 
-  if (parseInt(chainId as string, 16) !== expectedChainId) {
+  if (parseInt(chainId, 16) !== expectedChainId) {
     // Try to switch chain
     try {
       await window.ethereum.request({
@@ -92,7 +92,7 @@ export async function getUserWalletClient() {
   return createWalletClient({
     chain: CHAIN,
     transport: custom(window.ethereum),
-    account: (accounts as string[])[0] as `0x${string}`,
+    account: accounts[0] as `0x${string}`,
   });
 }
 
@@ -259,7 +259,7 @@ export async function postTICComment(
       value: 0n,
     });
 
-    const explorerUrl = `${CHAIN.blockExplorers?.default.url}/tx/${txHash}`;
+    const explorerUrl = `${CHAINS[selectedChain].blockExplorers?.default.url}/tx/${txHash}`;
 
     return {
       success: true,
