@@ -33,6 +33,7 @@ function UploadContent() {
   const [manualHomeTx, setManualHomeTx] = useState("");
   const [manualAboutTx, setManualAboutTx] = useState("");
   const [useManual, setUseManual] = useState(false);
+  const [pixelArt, setPixelArt] = useState(false);
   const [selectedChain, setSelectedChain] = useState<ChainOption>("eth");
   const [manifestTx, setManifestTx] = useState<string | null>(null);
   const [inscribingManifest, setInscribingManifest] = useState(false);
@@ -268,7 +269,7 @@ function UploadContent() {
       })) as string[];
 
       // Build manifest with name included
-      const manifest: Record<string, Record<string, Record<string, string>>> = {
+      const manifest: Record<string, Record<string, Record<string, string | boolean>>> = {
         chainhost: {
           [username]: {},
         },
@@ -283,6 +284,9 @@ function UploadContent() {
       }
       if (aboutTx) {
         manifest.chainhost[username].about = aboutTx;
+      }
+      if (pixelArt) {
+        manifest.chainhost[username].pixel = true;
       }
 
       // Inscribe on Ethereum (manifest always on ETH for permanence)
@@ -684,6 +688,21 @@ function UploadContent() {
               Final step: inscribe your site manifest on Ethereum. This links
               your routes to your content.
             </p>
+
+            {/* Pixel Art checkbox */}
+            <label className="flex items-center gap-3 mb-4 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={pixelArt}
+                onChange={(e) => setPixelArt(e.target.checked)}
+                className="w-5 h-5 rounded border-zinc-600 bg-zinc-800 text-[#C3FF00] focus:ring-[#C3FF00] focus:ring-offset-0"
+              />
+              <div>
+                <span className="text-white font-medium">Pixel Art Mode</span>
+                <p className="text-xs text-gray-500">Scale images with nearest-neighbor (crisp pixels)</p>
+              </div>
+            </label>
+
             <button
               onClick={inscribeManifest}
               disabled={inscribingManifest}

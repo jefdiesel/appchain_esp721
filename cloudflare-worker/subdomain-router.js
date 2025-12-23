@@ -95,17 +95,30 @@ export default {
         });
       }
 
-      // 5. Fetch content
-      let content = await fetchEthscriptionContent(txHash);
+      // 5. Fetch content (use raw version to detect type)
+      const rawContent = await fetchTxContentRaw(txHash);
 
-      if (!content) {
+      if (!rawContent) {
         return new Response(contentErrorPage(name, txHash), {
           status: 500,
           headers: { 'Content-Type': 'text/html' },
         });
       }
 
-      // 6. Inject footer (if </body> exists)
+      // Check if it's an image
+      const isImage = rawContent.dataUri && rawContent.dataUri.startsWith('data:image/');
+      const pixelArt = manifest.pixel === true || manifest.pixel === 'true';
+
+      if (isImage) {
+        // Serve image wrapped in HTML
+        const html = imagePageHtml(name, rawContent.dataUri, txHash, pixelArt, manifest);
+        return new Response(html, {
+          headers: { 'Content-Type': 'text/html' },
+        });
+      }
+
+      // 6. For HTML, inject footer (if </body> exists)
+      let content = rawContent.decoded || rawContent.dataUri || '';
       content = injectFooter(content, name, manifest);
 
       return new Response(content, {
@@ -463,6 +476,40 @@ async function getInscriptionHistory(owner, name) {
     console.error('History lookup error:', e);
     return [];
   }
+}
+
+function imagePageHtml(name, dataUri, txHash, pixelArt, manifest) {
+  const hasAbout = !!manifest.about;
+
+  return `<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${name}</title>
+<link rel="icon" href="${FAVICON}">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;padding-bottom:60px}
+img{
+  ${pixelArt ? 'image-rendering:pixelated;image-rendering:crisp-edges;' : ''}
+  max-width:100%;
+  max-height:calc(100vh - 80px);
+  width:auto;
+  height:auto;
+}
+</style>
+</head><body>
+<img src="${dataUri}" alt="${name}">
+<nav id="chainhost-footer" style="position:fixed;bottom:0;left:0;right:0;background:#000;border-top:1px solid #333;padding:10px 20px;display:flex;justify-content:center;align-items:center;gap:24px;font-family:system-ui,-apple-system,sans-serif;font-size:13px;z-index:99999">
+  ${hasAbout ? `<a href="/about" style="color:#888;text-decoration:none" onmouseover="this.style.color='#C3FF00'" onmouseout="this.style.color='#888'">About</a>` : ''}
+  <a href="/previous" style="color:#888;text-decoration:none" onmouseover="this.style.color='#C3FF00'" onmouseout="this.style.color='#888'">Previous</a>
+  <a href="/recovery" style="color:#888;text-decoration:none" onmouseover="this.style.color='#C3FF00'" onmouseout="this.style.color='#888'">Recovery</a>
+  <span style="color:#333">|</span>
+  <a href="https://etherscan.io/tx/${txHash}" target="_blank" style="color:#555;text-decoration:none;font-size:11px">${txHash.slice(0,10)}...</a>
+  <span style="color:#333">|</span>
+  <a href="https://chainhost.online" target="_blank" style="color:#555;text-decoration:none;font-size:11px">chainhost</a>
+</nav>
+</body></html>`;
 }
 
 function injectFooter(html, name, manifest) {
