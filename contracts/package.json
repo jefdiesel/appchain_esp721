@@ -1,0 +1,12 @@
+{
+  "name": "chainhost-contracts",
+  "version": "1.0.0",
+  "scripts": {
+    "compile": "node compile.js",
+    "deploy": "node deploy.js"
+  },
+  "dependencies": {
+    "solc": "^0.8.20",
+    "viem": "^2.21.0"
+  }
+}

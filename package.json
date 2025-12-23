@@ -6,15 +6,22 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "setup:cloudflare": "npx tsx scripts/setup-cloudflare.ts"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.36.3",
+    "@clerk/themes": "^2.4.44",
+    "@coinbase/onchainkit": "^1.1.2",
     "@supabase/supabase-js": "^2.88.0",
+    "@tanstack/react-query": "^5.90.12",
+    "dotenv": "^17.2.3",
     "next": "16.0.10",
     "react": "19.2.1",
     "react-dom": "19.2.1",
-    "stripe": "^20.1.0"
+    "stripe": "^20.1.0",
+    "viem": "^2.43.1",
+    "wagmi": "^2.19.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -24,6 +31,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.0.10",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }

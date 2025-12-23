@@ -29,8 +29,23 @@ export async function GET(req: NextRequest) {
 
   // Check availability for supported TLDs
   const tlds = Object.keys(DOMAIN_PRICING);
+  const isSandbox = process.env.DYNADOT_API_KEY?.startsWith("sandbox_");
+
   const results = await Promise.all(
     tlds.map(async (tld) => {
+      // In sandbox mode, mock availability (odd-length domains = available)
+      if (isSandbox) {
+        const mockAvailable = cleanDomain.length % 2 === 1;
+        return {
+          domain: cleanDomain,
+          tld,
+          fullDomain: `${cleanDomain}.${tld}`,
+          available: mockAvailable,
+          price: DOMAIN_PRICING[tld].price / 100,
+          renewal: DOMAIN_PRICING[tld].renewal / 100,
+        };
+      }
+
       try {
         const availability = await checkDomainAvailability(
           `${cleanDomain}.${tld}`
@@ -40,7 +55,7 @@ export async function GET(req: NextRequest) {
           tld,
           fullDomain: `${cleanDomain}.${tld}`,
           available: availability.available,
-          price: DOMAIN_PRICING[tld].price / 100, // Convert cents to dollars
+          price: DOMAIN_PRICING[tld].price / 100,
           renewal: DOMAIN_PRICING[tld].renewal / 100,
         };
       } catch (error) {

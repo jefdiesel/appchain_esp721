@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { name, slug, template, htmlContent } = await req.json();
+  const { name, slug, template, style, html, htmlContent, inscription_tx, chain } = await req.json();
 
   if (!name || !slug) {
     return NextResponse.json(
@@ -59,6 +59,8 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
+
+  const htmlToSave = html || htmlContent;
 
   // Get or create user
   const { data: user, error: userError } = await supabaseAdmin
@@ -82,8 +84,8 @@ export async function POST(req: NextRequest) {
   }
 
   // Validate HTML if provided
-  if (htmlContent) {
-    const validation = validateForInscription(htmlContent);
+  if (htmlToSave) {
+    const validation = validateForInscription(htmlToSave);
     if (!validation.valid) {
       return NextResponse.json(
         {
@@ -96,8 +98,8 @@ export async function POST(req: NextRequest) {
   }
 
   // Generate minified HTML
-  const html = htmlContent || generateBootstrapHtml(name);
-  const minified = minifyHtml(html);
+  const finalHtml = htmlToSave || generateBootstrapHtml(name);
+  const minified = minifyHtml(finalHtml);
 
   // Generate service worker
   const sw = generateServiceWorker(user.wallet_address || userId, {});
@@ -105,19 +107,24 @@ export async function POST(req: NextRequest) {
   // Calculate gas estimate
   const gasEstimate = estimateGas(minified);
 
-  // Create site
+  // Create or update site
+  const siteSlug = slug.toLowerCase().replace(/[^a-z0-9-]/g, "-");
+
   const { data: site, error: siteError } = await supabaseAdmin
     .from("sites")
-    .insert({
+    .upsert({
       user_id: user.id,
       name,
-      slug: slug.toLowerCase().replace(/[^a-z0-9-]/g, "-"),
+      slug: siteSlug,
       template,
-      html_content: html,
+      style,
+      html_content: finalHtml,
       html_minified: minified,
       sw_content: sw,
-      status: "draft",
-    })
+      status: inscription_tx ? "live" : "draft",
+      inscription_tx: inscription_tx || null,
+      chain: chain || "base",
+    }, { onConflict: "user_id,slug" })
     .select()
     .single();
 

@@ -1,8 +1,11 @@
 // Dynadot API integration
 // Docs: https://www.dynadot.com/domain/api3.html
 
-const DYNADOT_API_URL = 'https://api.dynadot.com/api3.json'
 const API_KEY = process.env.DYNADOT_API_KEY!
+const IS_SANDBOX = API_KEY.startsWith('sandbox_')
+const DYNADOT_API_URL = IS_SANDBOX
+  ? 'https://api.dynadot.com/api3.json'  // Sandbox uses same URL but sandbox key
+  : 'https://api.dynadot.com/api3.json'
 
 interface DynadotResponse {
   SearchResponse?: {

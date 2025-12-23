@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { createCheckoutSession, getOrCreateCustomer } from "@/lib/stripe";
 import { supabaseAdmin } from "@/lib/supabase";
+
+// Check if Stripe is configured (checked at runtime)
+function isStripeEnabled() {
+  const key = process.env.STRIPE_SECRET_KEY;
+  return key && key.startsWith("sk_") && !key.includes("xxx");
+}
 
 export async function POST(req: NextRequest) {
   const { userId } = await auth();
@@ -42,7 +47,39 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Create pending domain record
+    const { data: domainRecord, error: domainError } = await supabaseAdmin
+      .from("domains")
+      .insert({
+        user_id: dbUser.id,
+        domain: domain.toLowerCase(),
+        tld: tld.toLowerCase(),
+        status: isStripeEnabled() ? "pending" : "active", // Skip to active if no Stripe
+      })
+      .select()
+      .single();
+
+    if (domainError) {
+      console.error("Domain insert error:", domainError);
+      return NextResponse.json(
+        { error: "Failed to create domain record" },
+        { status: 500 }
+      );
+    }
+
+    // If Stripe is not configured, skip checkout and go to dashboard
+    if (!isStripeEnabled()) {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+      return NextResponse.json({
+        checkoutUrl: `${appUrl}/dashboard?domain_registered=${domainRecord.id}`,
+        domainId: domainRecord.id,
+        skippedPayment: true
+      });
+    }
+
     // Get or create Stripe customer
+    const { createCheckoutSession, getOrCreateCustomer } = await import("@/lib/stripe");
+
     const customerId = await getOrCreateCustomer(
       user.emailAddresses[0]?.emailAddress || "",
       userId,
@@ -55,26 +92,6 @@ export async function POST(req: NextRequest) {
         .from("users")
         .update({ stripe_customer_id: customerId })
         .eq("id", dbUser.id);
-    }
-
-    // Create pending domain record
-    const { data: domainRecord, error: domainError } = await supabaseAdmin
-      .from("domains")
-      .insert({
-        user_id: dbUser.id,
-        domain: domain.toLowerCase(),
-        tld: tld.toLowerCase(),
-        status: "pending",
-      })
-      .select()
-      .single();
-
-    if (domainError) {
-      console.error("Domain insert error:", domainError);
-      return NextResponse.json(
-        { error: "Failed to create domain record" },
-        { status: 500 }
-      );
     }
 
     // Create Stripe checkout session
