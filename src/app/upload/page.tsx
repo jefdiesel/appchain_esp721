@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
@@ -38,6 +38,68 @@ function UploadContent() {
   const [inscribingManifest, setInscribingManifest] = useState(false);
   const [error, setError] = useState("");
 
+  // Scan wallet for owned names
+  const scanWalletForNames = async (wallet: string) => {
+    try {
+      const res = await fetch(
+        `https://api.ethscriptions.com/v2/ethscriptions?current_owner=${wallet}&mimetype=text/plain&per_page=100`
+      );
+      const data = await res.json();
+
+      if (data.result?.length) {
+        const names: OwnedName[] = [];
+        for (const eth of data.result) {
+          if (eth.content_uri?.startsWith("data:,")) {
+            const name = eth.content_uri.slice(6);
+            if (/^[a-z0-9-]+$/i.test(name) && name.length <= 32) {
+              names.push({ name: name.toLowerCase(), txHash: eth.transaction_hash });
+            }
+          }
+        }
+        setOwnedNames(names);
+        return names;
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  };
+
+  // Check for existing wallet connection on mount
+  useEffect(() => {
+    const checkExistingConnection = async () => {
+      if (!window.ethereum) return;
+
+      try {
+        // eth_accounts doesn't prompt - just checks if already connected
+        const accounts = (await window.ethereum.request({
+          method: "eth_accounts",
+        })) as string[];
+
+        if (accounts.length > 0) {
+          const wallet = accounts[0].toLowerCase();
+          setWalletAddress(wallet);
+          setScanning(true);
+
+          const names = await scanWalletForNames(wallet);
+
+          // If URL has a name param and we own it, auto-select
+          const urlName = searchParams.get("name");
+          if (urlName && names.some(n => n.name === urlName.toLowerCase())) {
+            setUsername(urlName.toLowerCase());
+            setOwnershipVerified(true);
+          }
+
+          setScanning(false);
+        }
+      } catch (e) {
+        // Silently fail - user will need to click connect
+      }
+    };
+
+    checkExistingConnection();
+  }, [searchParams]);
+
   // Connect wallet and scan for owned names
   const connectAndScan = async () => {
     if (!window.ethereum) {
@@ -49,39 +111,20 @@ function UploadContent() {
     setError("");
 
     try {
-      // Connect wallet
+      // Connect wallet (prompts user)
       const accounts = (await window.ethereum.request({
         method: "eth_requestAccounts",
       })) as string[];
       const wallet = accounts[0].toLowerCase();
       setWalletAddress(wallet);
 
-      // Fetch all ethscriptions owned by this wallet that match "data:,name" pattern
-      const res = await fetch(
-        `https://api.ethscriptions.com/v2/ethscriptions?current_owner=${wallet}&mimetype=text/plain&per_page=100`
-      );
-      const data = await res.json();
+      const names = await scanWalletForNames(wallet);
 
-      if (data.result?.length) {
-        const names: OwnedName[] = [];
-        for (const eth of data.result) {
-          // Check if content_uri matches "data:,name" pattern (simple name claim)
-          if (eth.content_uri?.startsWith("data:,")) {
-            const name = eth.content_uri.slice(6); // Remove "data:,"
-            // Only include simple alphanumeric names
-            if (/^[a-z0-9]+$/i.test(name) && name.length <= 32) {
-              names.push({ name: name.toLowerCase(), txHash: eth.transaction_hash });
-            }
-          }
-        }
-        setOwnedNames(names);
-
-        // If URL has a name param and we own it, auto-select
-        const urlName = searchParams.get("name");
-        if (urlName && names.some(n => n.name === urlName.toLowerCase())) {
-          setUsername(urlName.toLowerCase());
-          setOwnershipVerified(true);
-        }
+      // If URL has a name param and we own it, auto-select
+      const urlName = searchParams.get("name");
+      if (urlName && names.some(n => n.name === urlName.toLowerCase())) {
+        setUsername(urlName.toLowerCase());
+        setOwnershipVerified(true);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to scan wallet");
@@ -381,6 +424,20 @@ function UploadContent() {
               <p className="text-center text-xs text-gray-400 mt-1">
                 Verified owner: {walletAddress?.slice(0, 6)}...{walletAddress?.slice(-4)}
               </p>
+              <button
+                onClick={() => {
+                  setOwnershipVerified(false);
+                  setUsername("");
+                  setHomeFile(null);
+                  setAboutFile(null);
+                  setManualHomeTx("");
+                  setManualAboutTx("");
+                  setManifestTx(null);
+                }}
+                className="block mx-auto mt-2 text-xs text-gray-500 hover:text-white"
+              >
+                ← Choose different name
+              </button>
             </div>
 
         {/* Routes explanation */}
