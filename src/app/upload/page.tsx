@@ -17,7 +17,11 @@ interface PageFile {
 
 function UploadContent() {
   const searchParams = useSearchParams();
-  const [username, setUsername] = useState<string | null>(searchParams.get("name"));
+  const [username, setUsername] = useState<string>(searchParams.get("name") || "");
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [nameOwner, setNameOwner] = useState<string | null>(null);
+  const [ownershipVerified, setOwnershipVerified] = useState(false);
+  const [checkingOwnership, setCheckingOwnership] = useState(false);
   const [homeFile, setHomeFile] = useState<PageFile | null>(null);
   const [aboutFile, setAboutFile] = useState<PageFile | null>(null);
   const [selectedChain, setSelectedChain] = useState<ChainOption>("eth");
@@ -25,7 +29,66 @@ function UploadContent() {
   const [inscribingManifest, setInscribingManifest] = useState(false);
   const [error, setError] = useState("");
 
-  // Username is entered by user, no need to fetch
+  // Connect wallet and verify ownership
+  const verifyOwnership = async () => {
+    if (!username.trim()) {
+      setError("Enter a name first");
+      return;
+    }
+
+    if (!window.ethereum) {
+      setError("Please install MetaMask or another wallet");
+      return;
+    }
+
+    setCheckingOwnership(true);
+    setError("");
+
+    try {
+      // Connect wallet
+      const accounts = (await window.ethereum.request({
+        method: "eth_requestAccounts",
+      })) as string[];
+      const wallet = accounts[0].toLowerCase();
+      setWalletAddress(wallet);
+
+      // Check name ownership via Ethscriptions API
+      const nameSha = await sha256(`data:,${username.toLowerCase()}`);
+      const res = await fetch(
+        `https://api.ethscriptions.com/v2/ethscriptions/exists/0x${nameSha}`
+      );
+      const data = await res.json();
+
+      if (!data.result?.exists) {
+        setError(`Name "${username}" is not claimed. Claim it first at /register`);
+        setNameOwner(null);
+        setOwnershipVerified(false);
+      } else {
+        const owner = data.result.ethscription.current_owner.toLowerCase();
+        setNameOwner(owner);
+
+        if (owner === wallet) {
+          setOwnershipVerified(true);
+          setError("");
+        } else {
+          setOwnershipVerified(false);
+          setError(`You don't own "${username}". It belongs to ${owner.slice(0, 6)}...${owner.slice(-4)}`);
+        }
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to verify ownership");
+    } finally {
+      setCheckingOwnership(false);
+    }
+  };
+
+  // SHA256 helper
+  async function sha256(message: string): Promise<string> {
+    const msgBuffer = new TextEncoder().encode(message);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+  }
 
   // Handle file upload
   const handleFileUpload = (
@@ -226,25 +289,68 @@ function UploadContent() {
       <main className="max-w-2xl mx-auto px-6 py-12">
         <h1 className="text-3xl font-bold text-center mb-2">Upload Your Site</h1>
 
-        {/* Username input */}
-        <div className="mb-8">
-          <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden focus-within:border-[#C3FF00] max-w-md mx-auto">
-            <input
-              type="text"
-              value={username || ""}
-              onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s/g, ""))}
-              className="flex-1 bg-transparent px-4 py-3 text-lg focus:outline-none text-center"
-              placeholder="yourname"
-              maxLength={32}
-            />
-            <span className="text-gray-500 pr-4">.chainhost.online</span>
-          </div>
-          <p className="text-center text-xs text-gray-600 mt-2">
-            Enter the name you claimed on Ethscriptions
-          </p>
-        </div>
+        {/* Step 1: Verify ownership */}
+        {!ownershipVerified ? (
+          <div className="mb-8">
+            <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden focus-within:border-[#C3FF00] max-w-md mx-auto">
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => {
+                  setUsername(e.target.value.toLowerCase().replace(/\s/g, ""));
+                  setOwnershipVerified(false);
+                  setNameOwner(null);
+                }}
+                className="flex-1 bg-transparent px-4 py-3 text-lg focus:outline-none text-center"
+                placeholder="yourname"
+                maxLength={32}
+              />
+              <span className="text-gray-500 pr-4">.chainhost.online</span>
+            </div>
 
-        {/* Chain selector */}
+            {walletAddress && (
+              <p className="text-center text-xs text-gray-500 mt-2">
+                Connected: {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+              </p>
+            )}
+
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mt-4 text-red-400 text-sm text-center max-w-md mx-auto">
+                {error}
+                {error.includes("not claimed") && (
+                  <Link href="/register" className="block mt-2 text-[#C3FF00] hover:underline">
+                    → Register this name
+                  </Link>
+                )}
+              </div>
+            )}
+
+            <button
+              onClick={verifyOwnership}
+              disabled={checkingOwnership || !username.trim()}
+              className="mt-4 mx-auto block px-8 py-3 bg-[#C3FF00] text-black font-bold rounded-lg hover:bg-[#d4ff4d] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {checkingOwnership ? "Verifying..." : "Connect & Verify Ownership"}
+            </button>
+
+            <p className="text-center text-xs text-gray-600 mt-3">
+              Connect your wallet to verify you own this name
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Verified banner */}
+            <div className="bg-[#C3FF00]/10 border border-[#C3FF00] rounded-xl p-4 mb-8 max-w-md mx-auto">
+              <div className="flex items-center justify-center gap-2 text-[#C3FF00]">
+                <span>✓</span>
+                <span className="font-semibold">{username}.chainhost.online</span>
+              </div>
+              <p className="text-center text-xs text-gray-400 mt-1">
+                Verified owner: {walletAddress?.slice(0, 6)}...{walletAddress?.slice(-4)}
+              </p>
+            </div>
+
+            {/* Chain selector */}
         <div className="flex justify-center gap-3 mb-8">
           <button
             onClick={() => setSelectedChain("eth")}
@@ -290,12 +396,6 @@ function UploadContent() {
             </div>
           </div>
         </div>
-
-        {error && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-6 text-red-400 text-sm">
-            {error}
-          </div>
-        )}
 
         {/* Home file upload */}
         <div className="border border-zinc-800 rounded-xl p-6 mb-4">
@@ -466,6 +566,8 @@ function UploadContent() {
               Register Another Name
             </Link>
           </div>
+        )}
+          </>
         )}
       </main>
     </div>
