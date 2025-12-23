@@ -324,6 +324,14 @@ function decodeDataUri(uri) {
 }
 
 async function findManifest(owner, name) {
+  // Try case variations for manifest key lookup
+  const caseVariations = [
+    name,
+    name.toLowerCase(),
+    name.charAt(0).toUpperCase() + name.slice(1).toLowerCase(),
+    name.toUpperCase(),
+  ];
+
   try {
     const res = await fetch(
       `${ETHSCRIPTIONS_API}/ethscriptions?current_owner=${owner}&mime_subtype=json&per_page=50`
@@ -332,15 +340,20 @@ async function findManifest(owner, name) {
 
     if (!data.result?.length) return null;
 
-    // First pass: look for name-specific manifests (new format)
+    // First pass: look for name-specific manifests (new format) with case variations
     for (const eth of data.result) {
       try {
         const content = await fetchEthscriptionContent(eth.transaction_hash);
         if (content) {
           const parsed = JSON.parse(content);
           // New format: {"chainhost": {"degenjef": {"home": "0x..."}}}
-          if (parsed.chainhost && parsed.chainhost[name]) {
-            return parsed.chainhost[name];
+          if (parsed.chainhost) {
+            // Try each case variation
+            for (const variant of caseVariations) {
+              if (parsed.chainhost[variant]) {
+                return parsed.chainhost[variant];
+              }
+            }
           }
         }
       } catch (e) {
