@@ -21,7 +21,7 @@ export async function GET() {
     const maxPages = 10;
 
     while (pageCount < maxPages) {
-      const url = pageKey
+      const url: string = pageKey
         ? `${ETHSCRIPTIONS_API}/ethscriptions?mime_subtype=json&per_page=100&page_key=${pageKey}`
         : `${ETHSCRIPTIONS_API}/ethscriptions?mime_subtype=json&per_page=100`;
 
