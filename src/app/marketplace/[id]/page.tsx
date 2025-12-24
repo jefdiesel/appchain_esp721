@@ -64,6 +64,7 @@ export default function ListingPage({
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [onChainStatus, setOnChainStatus] = useState<"checking" | "valid" | "invalid" | "error">("checking");
+  const [cooldownBlocks, setCooldownBlocks] = useState<number | null>(null);
 
   useEffect(() => {
     checkWallet();
@@ -122,18 +123,19 @@ export default function ListingPage({
 
   const verifyOnChain = async (listingData: Listing) => {
     setOnChainStatus("checking");
+    setCooldownBlocks(null);
     try {
       const contractAddress = MARKETPLACE_CONTRACT[listingData.chain];
+      const rpcUrl = listingData.chain === "base"
+        ? "https://mainnet.base.org"
+        : "https://ethereum-rpc.publicnode.com";
 
-      // Use eth_call to read the getListing function
-      const response = await fetch(
-        listingData.chain === "base"
-          ? "https://mainnet.base.org"
-          : "https://eth.llamarpc.com",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+      // Batch request: getListing, listings (for listedAt), and block number
+      const response = await fetch(rpcUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify([
+          {
             jsonrpc: "2.0",
             id: 1,
             method: "eth_call",
@@ -144,20 +146,52 @@ export default function ListingPage({
               },
               "latest",
             ],
-          }),
-        }
-      );
+          },
+          {
+            jsonrpc: "2.0",
+            id: 2,
+            method: "eth_call",
+            params: [
+              {
+                to: contractAddress,
+                data: `0xc18b8db4${listingData.ethscriptionId.slice(2)}`, // listings(bytes32)
+              },
+              "latest",
+            ],
+          },
+          {
+            jsonrpc: "2.0",
+            id: 3,
+            method: "eth_blockNumber",
+            params: [],
+          },
+        ]),
+      });
 
-      const result = await response.json();
+      const results = await response.json();
+      const getListingResult = results.find((r: any) => r.id === 1)?.result;
+      const listingsResult = results.find((r: any) => r.id === 2)?.result;
+      const blockNumberHex = results.find((r: any) => r.id === 3)?.result;
 
-      if (result.result && result.result !== "0x") {
-        // Decode: bool active, address seller, uint256 price
-        const data = result.result.slice(2);
-        const active = data.slice(0, 64); // First 32 bytes = bool
+      if (getListingResult && getListingResult !== "0x") {
+        const data = getListingResult.slice(2);
+        const active = data.slice(0, 64);
         const isActive = parseInt(active, 16) === 1;
 
         if (isActive) {
           setOnChainStatus("valid");
+
+          // Check cooldown from listings mapping
+          // listings returns: seller (address), price (uint256), listedAt (uint64), active (bool)
+          if (listingsResult && listingsResult !== "0x" && blockNumberHex) {
+            const listingData = listingsResult.slice(2);
+            // Skip seller (32 bytes) + price (32 bytes) = 64 bytes, then listedAt is next
+            const listedAtHex = listingData.slice(128, 192); // bytes 64-96
+            const listedAt = parseInt(listedAtHex, 16);
+            const currentBlock = parseInt(blockNumberHex, 16);
+            const blocksRemaining = Math.max(0, (listedAt + 5) - currentBlock);
+            setCooldownBlocks(blocksRemaining);
+          }
         } else {
           setOnChainStatus("invalid");
         }
@@ -229,7 +263,18 @@ export default function ListingPage({
       fetchListing();
     } catch (err: unknown) {
       console.error("Buy error:", err);
-      setError((err as Error).message || "Failed to complete purchase");
+      const message = (err as Error).message || "";
+      if (message.includes("Cooldown not passed")) {
+        setError("This listing was just created. Please wait ~1 minute for the security cooldown to pass.");
+      } else if (message.includes("Wrong price")) {
+        setError("The listing price has changed. Please refresh the page.");
+      } else if (message.includes("Not listed")) {
+        setError("This listing is no longer available.");
+      } else if (message.includes("User rejected") || message.includes("user rejected")) {
+        setError("Transaction cancelled.");
+      } else {
+        setError(message || "Failed to complete purchase");
+      }
     }
 
     setBuying(false);
@@ -581,9 +626,17 @@ export default function ListingPage({
                         </div>
                       )}
 
+                      {onChainStatus === "valid" && cooldownBlocks !== null && cooldownBlocks > 0 && (
+                        <div className="bg-yellow-900/50 border border-yellow-500 rounded-lg p-4 mb-4 text-yellow-300 text-sm">
+                          <div className="font-semibold mb-1">Recently Listed</div>
+                          <div>This listing will be available to buy in ~{cooldownBlocks} block{cooldownBlocks !== 1 ? 's' : ''} (~{Math.ceil(cooldownBlocks * 12 / 60)} min).</div>
+                          <div className="text-yellow-400/70 text-xs mt-1">Security cooldown prevents frontrunning attacks.</div>
+                        </div>
+                      )}
+
                       <button
                         onClick={handleBuy}
-                        disabled={buying || onChainStatus !== "valid"}
+                        disabled={buying || onChainStatus !== "valid" || (cooldownBlocks !== null && cooldownBlocks > 0)}
                         className="w-full bg-[#C3FF00] text-black hover:bg-[#d4ff4d] disabled:bg-zinc-600 disabled:text-gray-400 px-6 py-3 rounded-lg font-bold text-lg"
                       >
                         {buying
@@ -592,6 +645,8 @@ export default function ListingPage({
                           ? "Verifying..."
                           : onChainStatus === "invalid"
                           ? "Not Available"
+                          : cooldownBlocks !== null && cooldownBlocks > 0
+                          ? `Available in ~${cooldownBlocks} blocks`
                           : `Buy for ${listing.priceEth.toFixed(4)} ETH`}
                       </button>
                       <div className="text-gray-400 text-sm mt-2 text-center">
