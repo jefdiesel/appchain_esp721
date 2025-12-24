@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabase } from '@/lib/supabase';
-import { dbRowToListing, getEthscriptionId } from '@/lib/marketplace';
+import { dbRowToListing } from '@/lib/marketplace';
 
 // GET /api/marketplace/listings - Browse all active listings
 export async function GET(request: NextRequest) {
@@ -78,12 +78,12 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = getSupabase();
     const body = await request.json();
-    const { name, sellerAddress, priceWei, depositTx, chain = 'eth' } = body;
+    const { name, sellerAddress, priceWei, depositTx, ethscriptionId, chain = 'eth' } = body;
 
     // Validate required fields
-    if (!name || !sellerAddress || !priceWei) {
+    if (!name || !sellerAddress || !priceWei || !ethscriptionId) {
       return NextResponse.json(
-        { error: 'Missing required fields: name, sellerAddress, priceWei' },
+        { error: 'Missing required fields: name, sellerAddress, priceWei, ethscriptionId' },
         { status: 400 }
       );
     }
@@ -97,6 +97,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate ethscription ID format (should be a 0x-prefixed 64-char hex string = TX hash)
+    if (!/^0x[a-fA-F0-9]{64}$/.test(ethscriptionId)) {
+      return NextResponse.json(
+        { error: 'Invalid ethscription ID format' },
+        { status: 400 }
+      );
+    }
+
     // Validate price
     try {
       const price = BigInt(priceWei);
@@ -106,8 +114,6 @@ export async function POST(request: NextRequest) {
     } catch {
       return NextResponse.json({ error: 'Invalid price format' }, { status: 400 });
     }
-
-    const ethscriptionId = getEthscriptionId(normalizedName);
 
     // Check if already listed
     const { data: existing } = await supabase

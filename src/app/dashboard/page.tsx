@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { MARKETPLACE_CONTRACT, MARKETPLACE_ABI, weiToEth, getEthscriptionIdAsync } from "@/lib/marketplace";
+import { MARKETPLACE_CONTRACT, MARKETPLACE_ABI, weiToEth } from "@/lib/marketplace";
 import { getUserWalletClient, setChain } from "@/lib/wallet";
 
 interface Listing {
   id: string;
   name: string;
+  ethscriptionId: string;
   priceWei: string;
   status: string;
   createdAt: string;
@@ -34,7 +35,8 @@ export default function DashboardPage() {
     setError("");
 
     try {
-      const ethscriptionId = await getEthscriptionIdAsync(listing.name);
+      // Use the stored ethscription ID (which is the creation TX hash)
+      const ethscriptionId = listing.ethscriptionId;
       const chain = (listing.chain || "eth") as "eth" | "base";
       setChain(chain);
 

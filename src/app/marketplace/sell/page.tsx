@@ -5,7 +5,6 @@ import Link from "next/link";
 import { getUserWalletClient, setChain, type ChainOption } from "@/lib/wallet";
 import {
   MARKETPLACE_CONTRACT,
-  getEthscriptionIdAsync,
   ethToWei,
 } from "@/lib/marketplace";
 
@@ -105,11 +104,11 @@ export default function SellPage() {
           // Match data:,name format (lowercase names only)
           const match = uri.match(/^data:,([a-z0-9-]+)$/);
           if (match && match[1].length <= 32) {
-            const ethscriptionId = await getEthscriptionIdAsync(match[1]);
+            // The ethscription ID IS the transaction hash (not SHA256 of content!)
             names.push({
               name: match[1],
               txHash: eth.transaction_hash,
-              ethscriptionId,
+              ethscriptionId: eth.transaction_hash, // Protocol uses TX hash as ID
             });
           }
         }
@@ -140,16 +139,13 @@ export default function SellPage() {
       const walletClient = await getUserWalletClient();
 
       // Step 1: Transfer ethscription to marketplace contract
-      // This is done by sending the ethscription to the contract address
-      const dataUri = `data:,${selectedName.name}`;
-      const hexData = ("0x" +
-        Array.from(new TextEncoder().encode(dataUri))
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join("")) as `0x${string}`;
+      // The ethscription ID IS the transaction hash of the creation tx
+      // To transfer, we send a TX with the ethscription ID as calldata
+      const ethscriptionId = selectedName.ethscriptionId as `0x${string}`;
 
       const hash = await walletClient.sendTransaction({
         to: contractAddress as `0x${string}`,
-        data: hexData,
+        data: ethscriptionId, // TX hash of creation = ethscription ID
         value: 0n,
       });
 
@@ -206,6 +202,7 @@ export default function SellPage() {
           sellerAddress: address,
           priceWei,
           depositTx,
+          ethscriptionId: selectedName.ethscriptionId, // TX hash of creation
           listTx: listTxHash,
           chain,
         }),
