@@ -15,18 +15,28 @@ export async function GET() {
     const seenNames = new Set<string>();
     const allEthscriptions: any[] = [];
 
-    // Fetch 1000 JSON ethscriptions (10 pages of 100)
-    for (let page = 1; page <= 10; page++) {
-      const res = await fetch(
-        `${ETHSCRIPTIONS_API}/ethscriptions?mime_subtype=json&per_page=100&page=${page}`,
-        { next: { revalidate: 60 } }
-      );
+    // Fetch JSON ethscriptions using cursor pagination (up to 1000)
+    let pageKey: string | null = null;
+    let pageCount = 0;
+    const maxPages = 10;
+
+    while (pageCount < maxPages) {
+      const url = pageKey
+        ? `${ETHSCRIPTIONS_API}/ethscriptions?mime_subtype=json&per_page=100&page_key=${pageKey}`
+        : `${ETHSCRIPTIONS_API}/ethscriptions?mime_subtype=json&per_page=100`;
+
+      const res = await fetch(url, { next: { revalidate: 60 } });
       const data = await res.json();
 
       if (!data.result?.length) break;
       allEthscriptions.push(...data.result);
 
-      if (data.result.length < 100) break; // No more pages
+      if (data.pagination?.has_more && data.pagination?.page_key) {
+        pageKey = data.pagination.page_key;
+        pageCount++;
+      } else {
+        break;
+      }
     }
 
     for (const eth of allEthscriptions) {

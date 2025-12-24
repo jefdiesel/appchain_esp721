@@ -18,7 +18,10 @@ interface PageFile {
 interface OwnedName {
   name: string;
   txHash: string;
+  blockNumber?: number;
 }
+
+type SortOption = "newest" | "oldest" | "az" | "za";
 
 
 function UploadContent() {
@@ -28,6 +31,8 @@ function UploadContent() {
   const [ownedNames, setOwnedNames] = useState<OwnedName[]>([]);
   const [ownershipVerified, setOwnershipVerified] = useState(false);
   const [scanning, setScanning] = useState(false);
+  const [nameSearch, setNameSearch] = useState("");
+  const [nameSort, setNameSort] = useState<SortOption>("newest");
   const [homeFile, setHomeFile] = useState<PageFile | null>(null);
   const [aboutFile, setAboutFile] = useState<PageFile | null>(null);
   const [manualHomeTx, setManualHomeTx] = useState("");
@@ -39,29 +44,49 @@ function UploadContent() {
   const [inscribingManifest, setInscribingManifest] = useState(false);
   const [error, setError] = useState("");
 
-  // Scan wallet for owned names
+  // Scan wallet for owned names (cursor-based pagination)
   const scanWalletForNames = async (wallet: string) => {
     try {
-      const res = await fetch(
-        `https://api.ethscriptions.com/v2/ethscriptions?current_owner=${wallet}&mimetype=text/plain&per_page=100`
-      );
-      const data = await res.json();
+      const allNames: OwnedName[] = [];
+      let pageKey: string | null = null;
+      let hasMore = true;
 
-      if (data.result?.length) {
-        const names: OwnedName[] = [];
-        for (const eth of data.result) {
-          if (eth.content_uri?.startsWith("data:,")) {
-            const name = eth.content_uri.slice(6);
-            // Preserve original case - don't lowercase
-            if (/^[a-z0-9-]+$/i.test(name) && name.length <= 32) {
-              names.push({ name, txHash: eth.transaction_hash });
+      while (hasMore) {
+        const url = pageKey
+          ? `https://api.ethscriptions.com/v2/ethscriptions?current_owner=${wallet}&per_page=100&page_key=${pageKey}`
+          : `https://api.ethscriptions.com/v2/ethscriptions?current_owner=${wallet}&per_page=100`;
+
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (data.result?.length) {
+          for (const eth of data.result) {
+            if (eth.content_uri?.startsWith("data:,")) {
+              const name = eth.content_uri.slice(6);
+              // Only lowercase names - URLs don't support capitals
+              if (/^[a-z0-9-]+$/.test(name) && name.length <= 32) {
+                allNames.push({
+                  name,
+                  txHash: eth.transaction_hash,
+                  blockNumber: eth.block_number || 0
+                });
+              }
             }
           }
+
+          // Use cursor pagination
+          if (data.pagination?.has_more && data.pagination?.page_key) {
+            pageKey = data.pagination.page_key;
+          } else {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
         }
-        setOwnedNames(names);
-        return names;
       }
-      return [];
+
+      setOwnedNames(allNames);
+      return allNames;
     } catch (e) {
       return [];
     }
@@ -347,6 +372,24 @@ function UploadContent() {
       ? `https://etherscan.io/tx/${tx}`
       : `https://basescan.org/tx/${tx}`;
 
+  // Filter and sort names
+  const filteredNames = ownedNames
+    .filter(n => !nameSearch || n.name.toLowerCase().includes(nameSearch.toLowerCase()))
+    .sort((a, b) => {
+      switch (nameSort) {
+        case "newest":
+          return (b.blockNumber || 0) - (a.blockNumber || 0);
+        case "oldest":
+          return (a.blockNumber || 0) - (b.blockNumber || 0);
+        case "az":
+          return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+        case "za":
+          return b.name.toLowerCase().localeCompare(a.name.toLowerCase());
+        default:
+          return 0;
+      }
+    });
+
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Nav */}
@@ -392,18 +435,86 @@ function UploadContent() {
 
                 {ownedNames.length > 0 ? (
                   <div className="max-w-md mx-auto">
-                    <p className="text-sm text-gray-400 mb-3 text-center">Select a name you own:</p>
-                    <div className="space-y-2">
-                      {ownedNames.map((n) => (
-                        <button
-                          key={n.txHash}
-                          onClick={() => selectName(n.name)}
-                          className="w-full p-4 bg-zinc-900 border border-zinc-800 rounded-xl hover:border-[#C3FF00] transition text-left"
-                        >
-                          <span className="text-white font-medium">{n.name}</span>
-                          <span className="text-gray-500">.chainhost.online</span>
-                        </button>
-                      ))}
+                    <p className="text-sm text-gray-400 mb-2 text-center">
+                      Select a name you own ({ownedNames.length} total):
+                    </p>
+                    <p className="text-xs text-gray-600 mb-3 text-center">
+                      Only lowercase names work on subdomains
+                    </p>
+
+                    {/* Search */}
+                    <div className="mb-3">
+                      <input
+                        type="text"
+                        value={nameSearch}
+                        onChange={(e) => setNameSearch(e.target.value)}
+                        placeholder="Search names..."
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-[#C3FF00]"
+                      />
+                    </div>
+
+                    {/* Sort buttons */}
+                    <div className="flex gap-2 mb-4 flex-wrap justify-center">
+                      <button
+                        onClick={() => setNameSort("newest")}
+                        className={`px-3 py-1 text-xs rounded-lg transition ${
+                          nameSort === "newest"
+                            ? "bg-[#C3FF00] text-black"
+                            : "bg-zinc-800 text-gray-400 hover:text-white"
+                        }`}
+                      >
+                        Newest
+                      </button>
+                      <button
+                        onClick={() => setNameSort("oldest")}
+                        className={`px-3 py-1 text-xs rounded-lg transition ${
+                          nameSort === "oldest"
+                            ? "bg-[#C3FF00] text-black"
+                            : "bg-zinc-800 text-gray-400 hover:text-white"
+                        }`}
+                      >
+                        Oldest
+                      </button>
+                      <button
+                        onClick={() => setNameSort("az")}
+                        className={`px-3 py-1 text-xs rounded-lg transition ${
+                          nameSort === "az"
+                            ? "bg-[#C3FF00] text-black"
+                            : "bg-zinc-800 text-gray-400 hover:text-white"
+                        }`}
+                      >
+                        A-Z
+                      </button>
+                      <button
+                        onClick={() => setNameSort("za")}
+                        className={`px-3 py-1 text-xs rounded-lg transition ${
+                          nameSort === "za"
+                            ? "bg-[#C3FF00] text-black"
+                            : "bg-zinc-800 text-gray-400 hover:text-white"
+                        }`}
+                      >
+                        Z-A
+                      </button>
+                    </div>
+
+                    {/* Names list */}
+                    <div className="space-y-2 max-h-80 overflow-y-auto">
+                      {filteredNames.length > 0 ? (
+                        filteredNames.map((n) => (
+                          <button
+                            key={n.txHash}
+                            onClick={() => selectName(n.name)}
+                            className="w-full p-4 bg-zinc-900 border border-zinc-800 rounded-xl hover:border-[#C3FF00] transition text-left"
+                          >
+                            <span className="text-white font-medium">{n.name}</span>
+                            <span className="text-gray-500">.chainhost.online</span>
+                          </button>
+                        ))
+                      ) : (
+                        <p className="text-center text-gray-500 py-4">
+                          No names match &quot;{nameSearch}&quot;
+                        </p>
+                      )}
                     </div>
                   </div>
                 ) : (

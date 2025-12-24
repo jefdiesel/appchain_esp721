@@ -84,13 +84,15 @@ export default function SellPage() {
           ? "https://base-api.ethscriptions.com/v2"
           : "https://api.ethscriptions.com/v2";
 
-      let page = 1;
+      let pageKey: string | null = null;
       let hasMore = true;
 
-      while (hasMore && page <= 10) {
-        const res = await fetch(
-          `${API_BASE}/ethscriptions?current_owner=${address}&page=${page}&per_page=100`
-        );
+      while (hasMore) {
+        const url = pageKey
+          ? `${API_BASE}/ethscriptions?current_owner=${address}&per_page=100&page_key=${pageKey}`
+          : `${API_BASE}/ethscriptions?current_owner=${address}&per_page=100`;
+
+        const res = await fetch(url);
         const data = await res.json();
 
         if (!data.result || data.result.length === 0) {
@@ -112,8 +114,11 @@ export default function SellPage() {
           }
         }
 
-        page++;
-        if (data.result.length < 100) hasMore = false;
+        if (data.pagination?.has_more && data.pagination?.page_key) {
+          pageKey = data.pagination.page_key;
+        } else {
+          hasMore = false;
+        }
       }
     } catch (err) {
       console.error("Scan error:", err);
