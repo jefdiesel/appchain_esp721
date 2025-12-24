@@ -314,6 +314,41 @@ contract EthscriptionMarketplace {
         owner = newOwner;
     }
 
+    /**
+     * @notice Admin rescue function for stuck ethscriptions
+     * @dev Use when ethscription was transferred but deposit() was never called
+     * @param ethscriptionId The ethscription to rescue
+     * @param originalOwner The address that originally sent the ethscription
+     */
+    function adminRescue(bytes32 ethscriptionId, address originalOwner) external onlyOwner {
+        require(depositors[ethscriptionId] == address(0), "Already has depositor");
+        require(originalOwner != address(0), "Invalid owner");
+
+        // Clear any listing state (shouldn't exist but just in case)
+        if (listings[ethscriptionId].active) {
+            listings[ethscriptionId].active = false;
+        }
+
+        // Transfer back to original owner via ESIP-2
+        emit ethscriptions_protocol_TransferEthscriptionForPreviousOwner(
+            originalOwner,
+            originalOwner,
+            ethscriptionId
+        );
+    }
+
+    /**
+     * @notice Admin function to manually register a depositor
+     * @dev Use to fix stuck state where ethscription was sent but not registered
+     * @param ethscriptionId The ethscription
+     * @param depositor The address that sent the ethscription
+     */
+    function adminRegisterDepositor(bytes32 ethscriptionId, address depositor) external onlyOwner {
+        require(depositors[ethscriptionId] == address(0), "Already has depositor");
+        require(depositor != address(0), "Invalid depositor");
+        depositors[ethscriptionId] = depositor;
+    }
+
     // Receive ETH for offers
     // Accept ETH
     receive() external payable {}

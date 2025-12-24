@@ -88,9 +88,9 @@ export default function SellPage() {
       let hasMore = true;
 
       while (hasMore) {
-        const url = pageKey
-          ? `${API_BASE}/ethscriptions?current_owner=${address}&per_page=100&page_key=${pageKey}`
-          : `${API_BASE}/ethscriptions?current_owner=${address}&per_page=100`;
+        const url: string = pageKey
+          ? `${API_BASE}/ethscriptions?current_owner=${address}&mimetype=text/plain&per_page=100&page_key=${pageKey}`
+          : `${API_BASE}/ethscriptions?current_owner=${address}&mimetype=text/plain&per_page=100`;
 
         const res = await fetch(url);
         const data = await res.json();
@@ -136,12 +136,6 @@ export default function SellPage() {
 
     try {
       const contractAddress = MARKETPLACE_CONTRACT[chain];
-      if (contractAddress === "0x0000000000000000000000000000000000000000") {
-        throw new Error(
-          "Marketplace contract not deployed yet. Coming soon!"
-        );
-      }
-
       setChain(chain);
       const walletClient = await getUserWalletClient();
 
@@ -177,8 +171,33 @@ export default function SellPage() {
 
     try {
       const priceWei = ethToWei(price);
+      const contractAddress = MARKETPLACE_CONTRACT[chain];
+      setChain(chain);
+      const walletClient = await getUserWalletClient();
 
-      // Create listing in database
+      // Step 2: Call depositAndList on the contract to register deposit and create listing
+      const listTxHash = await walletClient.writeContract({
+        address: contractAddress as `0x${string}`,
+        abi: [
+          {
+            name: "depositAndList",
+            type: "function",
+            inputs: [
+              { name: "ethscriptionId", type: "bytes32" },
+              { name: "price", type: "uint256" },
+            ],
+            outputs: [],
+            stateMutability: "nonpayable",
+          },
+        ],
+        functionName: "depositAndList",
+        args: [
+          selectedName.ethscriptionId as `0x${string}`,
+          BigInt(priceWei),
+        ],
+      });
+
+      // Step 3: Create listing in database only after contract call succeeds
       const res = await fetch("/api/marketplace/listings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -187,6 +206,7 @@ export default function SellPage() {
           sellerAddress: address,
           priceWei,
           depositTx,
+          listTx: listTxHash,
           chain,
         }),
       });
@@ -213,14 +233,15 @@ export default function SellPage() {
   if (!address) {
     return (
       <div className="min-h-screen bg-black text-white">
-        <header className="border-b border-gray-800 p-4">
+        <header className="border-b border-zinc-800 p-4">
           <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <Link href="/" className="text-2xl font-bold">
-              chainhost
+            <Link href="/" className="text-2xl font-bold flex items-center gap-2">
+              <img src="/favicon.png" alt="" className="w-6 h-6" />
+              <span><span className="text-white">Chain</span><span className="text-[#C3FF00]">Host</span></span>
             </Link>
             <button
               onClick={connectWallet}
-              className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-sm"
+              className="bg-[#C3FF00] text-black hover:bg-[#d4ff4d] px-4 py-2 rounded-lg text-sm font-semibold"
             >
               Connect Wallet
             </button>
@@ -233,7 +254,7 @@ export default function SellPage() {
           </p>
           <button
             onClick={connectWallet}
-            className="bg-green-600 hover:bg-green-700 px-6 py-3 rounded-lg"
+            className="bg-[#C3FF00] text-black hover:bg-[#d4ff4d] px-6 py-3 rounded-lg font-semibold"
           >
             Connect Wallet
           </button>
@@ -244,16 +265,17 @@ export default function SellPage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <header className="border-b border-gray-800 p-4">
+      <header className="border-b border-zinc-800 p-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <Link href="/" className="text-2xl font-bold">
-            chainhost
+          <Link href="/" className="text-2xl font-bold flex items-center gap-2">
+            <img src="/favicon.png" alt="" className="w-6 h-6" />
+            <span><span className="text-white">Chain</span><span className="text-[#C3FF00]">Host</span></span>
           </Link>
           <nav className="flex items-center gap-6">
-            <Link href="/marketplace" className="text-green-400">
-              marketplace
+            <Link href="/marketplace" className="text-[#C3FF00]">
+              Marketplace
             </Link>
-            <span className="text-gray-400">{formatAddress(address)}</span>
+            <span className="text-gray-400 font-mono">{formatAddress(address)}</span>
           </nav>
         </div>
       </header>
@@ -275,15 +297,15 @@ export default function SellPage() {
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center ${
                   step === s
-                    ? "bg-green-600"
+                    ? "bg-[#C3FF00] text-black"
                     : ["select", "deposit", "list", "done"].indexOf(step) > i
-                    ? "bg-green-800"
-                    : "bg-gray-700"
+                    ? "bg-[#C3FF00]/50 text-black"
+                    : "bg-zinc-700"
                 }`}
               >
                 {i + 1}
               </div>
-              {i < 3 && <div className="w-12 h-0.5 bg-gray-700 mx-2" />}
+              {i < 3 && <div className="w-12 h-0.5 bg-zinc-700 mx-2" />}
             </div>
           ))}
         </div>
@@ -296,7 +318,7 @@ export default function SellPage() {
 
         {/* Step 1: Select Name */}
         {step === "select" && (
-          <div className="bg-gray-900 rounded-lg p-6">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
             <h2 className="text-xl font-bold mb-4">1. Select Name to Sell</h2>
 
             <div className="mb-4">
@@ -307,7 +329,7 @@ export default function SellPage() {
                   setChainState(e.target.value as ChainOption);
                   setOwnedNames([]);
                 }}
-                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2"
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2"
               >
                 <option value="eth">Ethereum</option>
                 <option value="base">Base</option>
@@ -323,7 +345,7 @@ export default function SellPage() {
                 <div className="text-gray-400 mb-4">
                   No names found in your wallet
                 </div>
-                <Link href="/register" className="text-green-400 hover:underline">
+                <Link href="/register" className="text-[#C3FF00] hover:underline">
                   Register a name first
                 </Link>
               </div>
@@ -335,8 +357,8 @@ export default function SellPage() {
                     onClick={() => setSelectedName(n)}
                     className={`p-3 rounded-lg font-mono text-left ${
                       selectedName?.txHash === n.txHash
-                        ? "bg-green-600"
-                        : "bg-gray-800 hover:bg-gray-700"
+                        ? "bg-[#C3FF00] text-black"
+                        : "bg-zinc-800 hover:bg-zinc-700"
                     }`}
                   >
                     {n.name}
@@ -356,13 +378,13 @@ export default function SellPage() {
                   placeholder="0.00"
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-xl focus:outline-none focus:border-green-500"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-xl focus:outline-none focus:border-[#C3FF00]"
                 />
 
                 <button
                   onClick={() => setStep("deposit")}
                   disabled={!price || parseFloat(price) <= 0}
-                  className="w-full mt-4 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 px-6 py-3 rounded-lg font-bold"
+                  className="w-full mt-4 bg-[#C3FF00] text-black hover:bg-[#d4ff4d] disabled:bg-zinc-600 disabled:text-gray-400 px-6 py-3 rounded-lg font-bold"
                 >
                   Continue with {selectedName.name}
                 </button>
@@ -373,11 +395,11 @@ export default function SellPage() {
 
         {/* Step 2: Deposit */}
         {step === "deposit" && selectedName && (
-          <div className="bg-gray-900 rounded-lg p-6">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
             <h2 className="text-xl font-bold mb-4">2. Deposit to Escrow</h2>
 
-            <div className="bg-gray-800 rounded-lg p-4 mb-6">
-              <div className="text-2xl font-mono text-green-400 mb-2">
+            <div className="bg-zinc-800 rounded-lg p-4 mb-6">
+              <div className="text-2xl font-mono text-[#C3FF00] mb-2">
                 {selectedName.name}
               </div>
               <div className="text-gray-400">
@@ -394,14 +416,14 @@ export default function SellPage() {
             <div className="flex gap-4">
               <button
                 onClick={() => setStep("select")}
-                className="flex-1 bg-gray-700 hover:bg-gray-600 px-6 py-3 rounded-lg"
+                className="flex-1 bg-zinc-700 hover:bg-zinc-600 px-6 py-3 rounded-lg"
               >
                 Back
               </button>
               <button
                 onClick={handleDeposit}
                 disabled={loading}
-                className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 px-6 py-3 rounded-lg font-bold"
+                className="flex-1 bg-[#C3FF00] text-black hover:bg-[#d4ff4d] disabled:bg-zinc-600 disabled:text-gray-400 px-6 py-3 rounded-lg font-bold"
               >
                 {loading ? "Depositing..." : "Deposit Name"}
               </button>
@@ -411,15 +433,15 @@ export default function SellPage() {
 
         {/* Step 3: List */}
         {step === "list" && selectedName && (
-          <div className="bg-gray-900 rounded-lg p-6">
-            <h2 className="text-xl font-bold mb-4">3. Create Listing</h2>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+            <h2 className="text-xl font-bold mb-4">3. Register & List on Contract</h2>
 
-            <div className="bg-green-900/30 border border-green-500 rounded-lg p-4 mb-6">
-              Deposit successful! TX: {depositTx.slice(0, 10)}...
+            <div className="bg-[#C3FF00]/10 border border-[#C3FF00] rounded-lg p-4 mb-6">
+              Ethscription transferred! TX: {depositTx.slice(0, 10)}...
             </div>
 
-            <div className="bg-gray-800 rounded-lg p-4 mb-6">
-              <div className="text-2xl font-mono text-green-400 mb-2">
+            <div className="bg-zinc-800 rounded-lg p-4 mb-6">
+              <div className="text-2xl font-mono text-[#C3FF00] mb-2">
                 {selectedName.name}
               </div>
               <div className="text-gray-400">
@@ -433,26 +455,31 @@ export default function SellPage() {
               </div>
             </div>
 
+            <p className="text-gray-400 text-sm mb-4">
+              This transaction will register your deposit and create the listing on the smart contract.
+              You&apos;ll need to sign one more transaction.
+            </p>
+
             <button
               onClick={handleList}
               disabled={loading}
-              className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 px-6 py-3 rounded-lg font-bold"
+              className="w-full bg-[#C3FF00] text-black hover:bg-[#d4ff4d] disabled:bg-zinc-600 disabled:text-gray-400 px-6 py-3 rounded-lg font-bold"
             >
-              {loading ? "Creating Listing..." : "Create Listing"}
+              {loading ? "Registering on Contract..." : "Register & List"}
             </button>
           </div>
         )}
 
         {/* Step 4: Done */}
         {step === "done" && selectedName && (
-          <div className="bg-gray-900 rounded-lg p-6 text-center">
-            <div className="text-6xl mb-4">&#10003;</div>
-            <h2 className="text-2xl font-bold mb-4 text-green-400">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 text-center">
+            <div className="text-6xl mb-4 text-[#C3FF00]">&#10003;</div>
+            <h2 className="text-2xl font-bold mb-4 text-[#C3FF00]">
               Listed Successfully!
             </h2>
 
-            <div className="bg-gray-800 rounded-lg p-4 mb-6">
-              <div className="text-2xl font-mono text-green-400 mb-2">
+            <div className="bg-zinc-800 rounded-lg p-4 mb-6">
+              <div className="text-2xl font-mono text-[#C3FF00] mb-2">
                 {selectedName.name}
               </div>
               <div className="text-xl">{price} ETH</div>
@@ -461,13 +488,13 @@ export default function SellPage() {
             <div className="flex gap-4">
               <Link
                 href={`/marketplace/${listingId}`}
-                className="flex-1 bg-green-600 hover:bg-green-700 px-6 py-3 rounded-lg font-bold"
+                className="flex-1 bg-[#C3FF00] text-black hover:bg-[#d4ff4d] px-6 py-3 rounded-lg font-bold"
               >
                 View Listing
               </Link>
               <Link
                 href="/marketplace"
-                className="flex-1 bg-gray-700 hover:bg-gray-600 px-6 py-3 rounded-lg"
+                className="flex-1 bg-zinc-700 hover:bg-zinc-600 px-6 py-3 rounded-lg"
               >
                 Browse Marketplace
               </Link>

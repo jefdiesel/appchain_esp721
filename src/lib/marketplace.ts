@@ -2,8 +2,8 @@
 
 // Contract addresses (deploy and update these)
 export const MARKETPLACE_CONTRACT = {
-  eth: '0x3e67d49716e50a8b1c71b8dEa0e31755305733fd',
-  base: '0x0000000000000000000000000000000000000000', // TODO: Deploy to Base
+  eth: '0x7af895301ab8a0ab13fe87819cc6f62f03689988',
+  base: '0x33796ce232bf02481de14a5e2b8e76d5687cb43f',
 } as const;
 
 // Contract ABI (minimal for frontend)
@@ -19,6 +19,8 @@ export const MARKETPLACE_ABI = [
   'function updatePrice(bytes32 ethscriptionId, uint256 newPrice) external',
   'function getListing(bytes32 ethscriptionId) external view returns (bool active, address seller, uint256 price)',
   'function getOffers(bytes32 ethscriptionId) external view returns (tuple(address buyer, uint256 amount, uint64 expiresAt)[])',
+  'function adminRescue(bytes32 ethscriptionId, address originalOwner) external',
+  'function adminRegisterDepositor(bytes32 ethscriptionId, address depositor) external',
   'event Listed(bytes32 indexed ethscriptionId, address indexed seller, uint256 price)',
   'event Unlisted(bytes32 indexed ethscriptionId, address indexed seller)',
   'event Sold(bytes32 indexed ethscriptionId, address indexed seller, address indexed buyer, uint256 price)',
