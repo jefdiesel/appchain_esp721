@@ -120,8 +120,9 @@ export default {
         });
       }
 
-      // 6. For HTML, inject footer (if </body> exists)
+      // 6. For HTML, inject OG tags and footer
       let content = rawContent.decoded || rawContent.dataUri || '';
+      content = injectOgTags(content, name);
       content = injectFooter(content, name, manifest);
 
       return new Response(content, {
@@ -504,6 +505,10 @@ function imagePageHtml(name, dataUri, txHash, pixelArt, manifest) {
 <html><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta property="og:title" content="${name}">
+<meta property="og:url" content="https://${name}.chainhost.online">
+<meta property="og:site_name" content="ChainHost">
+<meta property="og:type" content="website">
 <title>${name}</title>
 <link rel="icon" href="${FAVICON}">
 <style>
@@ -529,6 +534,23 @@ img{
   <a href="https://chainhost.online" target="_blank" style="color:#555;text-decoration:none;font-size:11px">chainhost</a>
 </nav>
 </body></html>`;
+}
+
+function injectOgTags(html, name) {
+  const ogTags = `
+<meta property="og:title" content="${name}">
+<meta property="og:url" content="https://${name}.chainhost.online">
+<meta property="og:site_name" content="ChainHost">
+<meta property="og:type" content="website">
+`;
+
+  // Inject after <head> or before </head>
+  if (html.includes('</head>')) {
+    return html.replace('</head>', ogTags + '</head>');
+  } else if (html.includes('<head>')) {
+    return html.replace('<head>', '<head>' + ogTags);
+  }
+  return html;
 }
 
 function injectFooter(html, name, manifest) {

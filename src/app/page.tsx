@@ -7,9 +7,9 @@ export default function Home() {
       {/* Nav */}
       <nav className="border-b border-zinc-800 px-6 py-4">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link href="/" className="text-xl font-bold">
-            <span className="text-white">CHAIN</span>
-            <span className="text-[#C3FF00]">HOST</span>
+          <Link href="/" className="text-xl font-bold flex items-center gap-2">
+            <img src="/favicon.png" alt="" className="w-5 h-5" />
+            <span><span className="text-white">Chain</span><span className="text-[#C3FF00]">Host</span></span>
           </Link>
           <div className="flex items-center gap-4">
             <Link

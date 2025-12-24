@@ -11,13 +11,13 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [txHash, setTxHash] = useState("");
 
-  // Validate name (no spaces, lowercase, alphanumeric + hyphen)
+  // Validate name (lowercase, alphanumeric + hyphen only)
   const validateName = (n: string) => {
-    return /^[a-zA-Z0-9-]+$/.test(n) && n.length >= 1 && n.length <= 32;
+    return /^[a-z0-9-]+$/.test(n) && n.length >= 1 && n.length <= 32;
   };
 
   const nameError = name && !validateName(name)
-    ? "Letters, numbers, and hyphens only. No spaces."
+    ? "Lowercase letters, numbers, and hyphens only."
     : "";
 
   // Check availability via Ethscriptions API (no wallet needed)
@@ -126,9 +126,9 @@ export default function RegisterPage() {
       {/* Nav */}
       <nav className="border-b border-zinc-800 px-6 py-4">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <Link href="/" className="text-xl font-bold">
-            <span className="text-white">CHAIN</span>
-            <span className="text-[#C3FF00]">HOST</span>
+          <Link href="/" className="text-xl font-bold flex items-center gap-2">
+            <img src="/favicon.png" alt="" className="w-5 h-5" />
+            <span><span className="text-white">Chain</span><span className="text-[#C3FF00]">Host</span></span>
           </Link>
           <Link href="/upload" className="text-sm text-gray-400 hover:text-white">
             Upload Site
@@ -152,11 +152,11 @@ export default function RegisterPage() {
           <ul className="space-y-2 text-sm text-gray-400">
             <li className="flex items-center gap-2">
               <span className="text-[#C3FF00]">✓</span>
-              Lowercase letters, numbers, hyphens
+              Lowercase letters, numbers, hyphens only
             </li>
             <li className="flex items-center gap-2">
               <span className="text-red-400">✗</span>
-              No spaces or special characters
+              No capitals, spaces, or special characters
             </li>
             <li className="flex items-center gap-2">
               <span className="text-[#C3FF00]">✓</span>
@@ -177,7 +177,7 @@ export default function RegisterPage() {
                 type="text"
                 value={name}
                 onChange={(e) => {
-                  setName(e.target.value.replace(/\s/g, ""));
+                  setName(e.target.value.toLowerCase().replace(/\s/g, ""));
                   setStatus("idle");
                   setOwner(null);
                 }}

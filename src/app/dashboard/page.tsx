@@ -140,9 +140,9 @@ export default function DashboardPage() {
       let hasMore = true;
 
       while (hasMore) {
-        const url = pageKey
-          ? `${API_BASE}/ethscriptions?current_owner=${address}&per_page=100&page_key=${pageKey}`
-          : `${API_BASE}/ethscriptions?current_owner=${address}&per_page=100`;
+        const url: string = pageKey
+          ? `${API_BASE}/ethscriptions?current_owner=${address}&mimetype=text/plain&per_page=100&page_key=${pageKey}`
+          : `${API_BASE}/ethscriptions?current_owner=${address}&mimetype=text/plain&per_page=100`;
 
         const res = await fetch(url);
         const data = await res.json();
@@ -194,9 +194,9 @@ export default function DashboardPage() {
       <div className="min-h-screen bg-black text-white">
         <header className="border-b border-gray-800 p-4">
           <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <Link href="/" className="text-2xl font-bold">
-              <span className="text-white">CHAIN</span>
-              <span className="text-[#C3FF00]">HOST</span>
+            <Link href="/" className="text-2xl font-bold flex items-center gap-2">
+              <img src="/favicon.png" alt="" className="w-6 h-6" />
+              <span><span className="text-white">Chain</span><span className="text-[#C3FF00]">Host</span></span>
             </Link>
             <button
               onClick={connectWallet}

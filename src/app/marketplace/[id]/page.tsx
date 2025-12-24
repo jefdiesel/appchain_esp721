@@ -140,7 +140,7 @@ export default function ListingPage({
             params: [
               {
                 to: contractAddress,
-                data: `0x107a274a${listingData.ethscriptionId.slice(2)}`, // getListing(bytes32)
+                data: `0x175c0d16${listingData.ethscriptionId.slice(2)}`, // getListing(bytes32)
               },
               "latest",
             ],

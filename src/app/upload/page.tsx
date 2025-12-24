@@ -52,9 +52,9 @@ function UploadContent() {
       let hasMore = true;
 
       while (hasMore) {
-        const url = pageKey
-          ? `https://api.ethscriptions.com/v2/ethscriptions?current_owner=${wallet}&per_page=100&page_key=${pageKey}`
-          : `https://api.ethscriptions.com/v2/ethscriptions?current_owner=${wallet}&per_page=100`;
+        const url: string = pageKey
+          ? `https://api.ethscriptions.com/v2/ethscriptions?current_owner=${wallet}&mimetype=text/plain&per_page=100&page_key=${pageKey}`
+          : `https://api.ethscriptions.com/v2/ethscriptions?current_owner=${wallet}&mimetype=text/plain&per_page=100`;
 
         const res = await fetch(url);
         const data = await res.json();
@@ -395,9 +395,9 @@ function UploadContent() {
       {/* Nav */}
       <nav className="border-b border-zinc-800 px-6 py-4">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <Link href="/" className="text-xl font-bold">
-            <span className="text-white">CHAIN</span>
-            <span className="text-[#C3FF00]">HOST</span>
+          <Link href="/" className="text-xl font-bold flex items-center gap-2">
+            <img src="/favicon.png" alt="" className="w-5 h-5" />
+            <span><span className="text-white">Chain</span><span className="text-[#C3FF00]">Host</span></span>
           </Link>
           <Link
             href="/register"
