@@ -8,9 +8,9 @@ import { getUserWalletClient, setChain } from "@/lib/wallet";
 interface Listing {
   id: string;
   name: string;
-  price_wei: string;
+  priceWei: string;
   status: string;
-  created_at: string;
+  createdAt: string;
   chain: string;
 }
 
@@ -294,13 +294,13 @@ export default function DashboardPage() {
                         {listing.name}
                       </span>
                       <div className="text-sm text-gray-500">
-                        Listed {formatDate(listing.created_at)}
+                        Listed {formatDate(listing.createdAt)}
                       </div>
                     </div>
                     <div className="flex items-center gap-4">
                       <div className="text-right">
                         <div className="text-[#C3FF00] font-bold">
-                          {parseFloat(weiToEth(listing.price_wei)).toFixed(4)} ETH
+                          {parseFloat(weiToEth(listing.priceWei)).toFixed(4)} ETH
                         </div>
                         <div className="text-xs text-gray-500 capitalize">
                           {listing.status}
