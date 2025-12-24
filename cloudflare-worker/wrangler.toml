@@ -8,3 +8,8 @@ preview_urls = false
 [[routes]]
 pattern = "*.chainhost.online/*"
 zone_name = "chainhost.online"
+
+# KV namespace for caching manifests
+[[kv_namespaces]]
+binding = "CACHE"
+id = "cf1246ee297644ec98a2e0cff569d4cb"

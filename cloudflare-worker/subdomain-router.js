@@ -15,6 +15,9 @@ const ETH_RPC = 'https://eth.llamarpc.com';
 const GIT_REPO = 'https://github.com/jefdiesel/chainhost';
 const FAVICON = 'https://chainhost.online/favicon.png';
 
+// Cache TTL in seconds (1 hour for manifests)
+const MANIFEST_CACHE_TTL = 3600;
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -36,30 +39,10 @@ export default {
     }
 
     try {
-      // 1. Check if name is claimed (data:,name exists)
-      // Try multiple case variations since subdomains are case-insensitive
-      const caseVariations = [
-        name.toLowerCase(),
-        name.charAt(0).toUpperCase() + name.slice(1).toLowerCase(), // Title case
-        name.toUpperCase(),
-      ];
-
-      let nameData = null;
-      let actualName = name; // The actual case from the ethscription
-      for (const variant of caseVariations) {
-        const nameSha = await sha256(`data:,${variant}`);
-        const nameRes = await fetch(`${ETHSCRIPTIONS_API}/ethscriptions/exists/0x${nameSha}`);
-        const data = await nameRes.json();
-        if (data.result?.exists) {
-          nameData = data;
-          // Extract actual name from content_uri
-          const contentUri = data.result.ethscription.content_uri;
-          if (contentUri?.startsWith('data:,')) {
-            actualName = contentUri.slice(6);
-          }
-          break;
-        }
-      }
+      // 1. Check if name is claimed (data:,name exists) - lowercase only
+      const nameSha = await sha256(`data:,${name}`);
+      const nameRes = await fetch(`${ETHSCRIPTIONS_API}/ethscriptions/exists/0x${nameSha}`);
+      const nameData = await nameRes.json();
 
       if (!nameData?.result?.exists) {
         return new Response(notClaimedPage(name), {
@@ -69,8 +52,6 @@ export default {
       }
 
       const owner = nameData.result.ethscription.current_owner;
-      // Use actualName (correct case) for everything
-      name = actualName;
 
       // 2. Handle special routes
       if (path === '/recovery') {
@@ -96,8 +77,8 @@ export default {
         return await serveTxContent(txHash, pixelArt, name);
       }
 
-      // 3. Find owner's chainhost manifest for this specific name
-      const manifest = await findManifest(owner, name);
+      // 3. Find owner's chainhost manifest for this specific name (with caching)
+      const manifest = await findManifestCached(env, owner, name);
 
       if (!manifest) {
         return new Response(noManifestPage(name, owner), {
@@ -323,15 +304,39 @@ function decodeDataUri(uri) {
   return null;
 }
 
-async function findManifest(owner, name) {
-  // Try case variations for manifest key lookup
-  const caseVariations = [
-    name,
-    name.toLowerCase(),
-    name.charAt(0).toUpperCase() + name.slice(1).toLowerCase(),
-    name.toUpperCase(),
-  ];
+async function findManifestCached(env, owner, name) {
+  const cacheKey = `manifest:${owner.toLowerCase()}:${name}`;
 
+  // Try cache first
+  if (env.CACHE) {
+    try {
+      const cached = await env.CACHE.get(cacheKey, 'json');
+      if (cached !== null) {
+        return cached; // Could be null (no manifest) or the manifest object
+      }
+    } catch (e) {
+      console.error('Cache read error:', e);
+    }
+  }
+
+  // Cache miss - fetch from API
+  const manifest = await findManifest(owner, name);
+
+  // Cache the result (even if null, to avoid repeated lookups)
+  if (env.CACHE) {
+    try {
+      await env.CACHE.put(cacheKey, JSON.stringify(manifest), {
+        expirationTtl: MANIFEST_CACHE_TTL,
+      });
+    } catch (e) {
+      console.error('Cache write error:', e);
+    }
+  }
+
+  return manifest;
+}
+
+async function findManifest(owner, name) {
   try {
     const res = await fetch(
       `${ETHSCRIPTIONS_API}/ethscriptions?current_owner=${owner}&mime_subtype=json&per_page=50`
@@ -340,37 +345,16 @@ async function findManifest(owner, name) {
 
     if (!data.result?.length) return null;
 
-    // First pass: look for name-specific manifests (new format) with case variations
+    // Look for name-specific manifests only (new format)
+    // Old format without name key is no longer supported
     for (const eth of data.result) {
       try {
         const content = await fetchEthscriptionContent(eth.transaction_hash);
         if (content) {
           const parsed = JSON.parse(content);
-          // New format: {"chainhost": {"degenjef": {"home": "0x..."}}}
-          if (parsed.chainhost) {
-            // Try each case variation
-            for (const variant of caseVariations) {
-              if (parsed.chainhost[variant]) {
-                return parsed.chainhost[variant];
-              }
-            }
-          }
-        }
-      } catch (e) {
-        // Not valid JSON or not chainhost manifest
-      }
-    }
-
-    // Second pass: fallback to old format (no name key) for backward compatibility
-    // Only use if user has a single name or this is their only manifest
-    for (const eth of data.result) {
-      try {
-        const content = await fetchEthscriptionContent(eth.transaction_hash);
-        if (content) {
-          const parsed = JSON.parse(content);
-          // Old format: {"chainhost": {"home": "0x..."}}
-          if (parsed.chainhost && parsed.chainhost.home && !Object.keys(parsed.chainhost).some(k => typeof parsed.chainhost[k] === 'object')) {
-            return parsed.chainhost;
+          // Format: {"chainhost": {"sitename": {"home": "0x..."}}}
+          if (parsed.chainhost && parsed.chainhost[name]) {
+            return parsed.chainhost[name];
           }
         }
       } catch (e) {
