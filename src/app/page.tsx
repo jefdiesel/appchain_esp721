@@ -1,4 +1,5 @@
 import Link from "next/link";
+import SiteFeed from "@/components/SiteFeed";
 
 export default function Home() {
   return (
@@ -11,6 +12,12 @@ export default function Home() {
             <span className="text-[#C3FF00]">HOST</span>
           </Link>
           <div className="flex items-center gap-4">
+            <Link
+              href="/marketplace"
+              className="px-4 py-2 text-sm hover:text-[#C3FF00] transition"
+            >
+              Marketplace
+            </Link>
             <Link
               href="/register"
               className="px-4 py-2 text-sm hover:text-[#C3FF00] transition"
@@ -91,6 +98,51 @@ export default function Home() {
                 surprise bills, no renewals.
               </p>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Marketplace CTA */}
+      <section className="py-20 px-6 border-t border-zinc-800 bg-zinc-900/50">
+        <div className="max-w-3xl mx-auto text-center">
+          <h2 className="text-3xl font-bold text-white mb-4">
+            Name Marketplace
+          </h2>
+          <p className="text-gray-400 mb-8">
+            Buy and sell ethscription names with trustless escrow.
+            No middlemen, instant transfers.
+          </p>
+          <div className="flex gap-4 justify-center">
+            <Link
+              href="/marketplace"
+              className="px-8 py-3 bg-[#C3FF00] text-black font-semibold rounded-lg hover:bg-[#d4ff4d] transition"
+            >
+              Browse Names
+            </Link>
+            <Link
+              href="/marketplace/sell"
+              className="px-8 py-3 border border-zinc-700 rounded-lg hover:border-[#C3FF00] transition"
+            >
+              Sell Your Names
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Live Sites Feed */}
+      <section className="py-20 px-6 border-t border-zinc-800">
+        <div className="max-w-2xl mx-auto">
+          <h2 className="text-3xl font-bold text-white text-center mb-4">
+            Live Sites
+          </h2>
+          <p className="text-gray-500 text-center mb-8">
+            Recently deployed on chainhost
+          </p>
+          <SiteFeed />
+          <div className="text-center mt-6">
+            <Link href="/feed" className="text-sm text-gray-500 hover:text-[#C3FF00]">
+              View all sites →
+            </Link>
           </div>
         </div>
       </section>
