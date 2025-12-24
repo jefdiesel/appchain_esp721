@@ -315,5 +315,9 @@ contract EthscriptionMarketplace {
     }
 
     // Receive ETH for offers
+    // Accept ETH
     receive() external payable {}
+
+    // Accept ethscription transfers (data in calldata)
+    fallback() external payable {}
 }

@@ -2,7 +2,7 @@
 
 // Contract addresses (deploy and update these)
 export const MARKETPLACE_CONTRACT = {
-  eth: '0x95d3EbF86919F40532a4F4dc04f4E4D7AB3c52DB',
+  eth: '0x3e67d49716e50a8b1c71b8dEa0e31755305733fd',
   base: '0x0000000000000000000000000000000000000000', // TODO: Deploy to Base
 } as const;
 
