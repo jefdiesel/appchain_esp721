@@ -63,7 +63,7 @@ export default function DashboardPage() {
       await fetch(`/api/marketplace/listing/${listing.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "cancelled" }),
+        body: JSON.stringify({ action: "cancel", sellerAddress: address }),
       });
 
       // Refresh data
