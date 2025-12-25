@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GM and Merry Christmas - A Gift for the Chain</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Georgia', serif;
+      background: #0a0a0a;
+      color: #e8e8e8;
+      min-height: 100vh;
+      line-height: 1.7;
+    }
+
+    .hero {
+      background-image: url('https://api.ethscriptions.com/v2/ethscriptions/0xd9e2eca25c211d6902b7d3c1b0f8e43d79dd41a33d87b083d7d4f5d39e2a7024/content');
+      background-repeat: repeat;
+      background-size: 200px 100px;
+      image-rendering: pixelated;
+      padding: 80px 20px;
+      text-align: center;
+      position: relative;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(10,10,10,0.7) 0%, rgba(10,10,10,0.9) 100%);
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 1;
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    .gm {
+      font-size: 4rem;
+      font-weight: bold;
+      color: #C3FF00;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      font-size: 1.5rem;
+      color: #888;
+      font-style: italic;
+    }
+
+    main {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 60px 20px;
+    }
+
+    h2 {
+      color: #C3FF00;
+      font-size: 1.8rem;
+      margin-bottom: 1rem;
+      margin-top: 2.5rem;
+    }
+
+    h2:first-of-type {
+      margin-top: 0;
+    }
+
+    p {
+      margin-bottom: 1.5rem;
+      font-size: 1.1rem;
+      color: #ccc;
+    }
+
+    .highlight {
+      color: #C3FF00;
+      font-weight: bold;
+    }
+
+    .cost {
+      background: #111;
+      border-left: 3px solid #C3FF00;
+      padding: 20px 25px;
+      margin: 2rem 0;
+    }
+
+    .cost-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.5rem;
+      font-size: 1.1rem;
+    }
+
+    .cost-item:last-child {
+      margin-bottom: 0;
+      padding-top: 0.5rem;
+      border-top: 1px solid #333;
+      font-weight: bold;
+      color: #C3FF00;
+    }
+
+    .cta {
+      text-align: center;
+      padding: 40px 20px;
+      background: #111;
+      margin-top: 3rem;
+    }
+
+    .cta h3 {
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+      color: #fff;
+    }
+
+    .cta p {
+      color: #888;
+      margin-bottom: 1.5rem;
+    }
+
+    .button {
+      display: inline-block;
+      background: #C3FF00;
+      color: #000;
+      padding: 15px 40px;
+      text-decoration: none;
+      font-weight: bold;
+      font-size: 1.1rem;
+      transition: background 0.2s;
+    }
+
+    .button:hover {
+      background: #d4ff4d;
+    }
+
+    .existing {
+      margin-top: 1rem;
+      font-size: 0.95rem;
+      color: #666;
+    }
+
+    .existing a {
+      color: #C3FF00;
+      text-decoration: none;
+    }
+
+    .existing a:hover {
+      text-decoration: underline;
+    }
+
+    footer {
+      text-align: center;
+      padding: 40px 20px;
+      color: #444;
+      font-size: 0.9rem;
+    }
+
+    footer a {
+      color: #C3FF00;
+      text-decoration: none;
+    }
+
+    ul {
+      margin: 1.5rem 0;
+      padding-left: 1.5rem;
+    }
+
+    li {
+      margin-bottom: 0.75rem;
+      color: #ccc;
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="hero-content">
+      <div class="gm">GM AND MERRY CHRISTMAS</div>
+      <div class="subtitle">A gift for Ethereum. A gift for the open web.</div>
+    </div>
+  </header>
+
+  <main>
+    <h2>The Gift of Forever</h2>
+    <p>
+      This Christmas, we are giving away something that costs almost nothing to create
+      but lasts forever: <span class="highlight">your own website on the blockchain</span>.
+    </p>
+    <p>
+      No hosting bills. No renewals. No corporations deciding your fate.
+      Just you, your content, and the immutable chain.
+    </p>
+
+    <h2>How It Works</h2>
+    <p>
+      An ethscription is a piece of data written directly to Ethereum calldata.
+      For about one cent, you can claim a name that becomes yours across the entire chain.
+    </p>
+    <p>
+      That name becomes your identity. Your website. Your corner of the permanent web.
+    </p>
+
+    <h2>Why It Costs Nothing to Run</h2>
+    <div class="cost">
+      <div class="cost-item">
+        <span>Cloudflare Workers</span>
+        <span>$0/mo</span>
+      </div>
+      <div class="cost-item">
+        <span>Bandwidth (served locally)</span>
+        <span>$0/mo</span>
+      </div>
+      <div class="cost-item">
+        <span>Storage (on-chain)</span>
+        <span>$0/mo</span>
+      </div>
+      <div class="cost-item">
+        <span>Total monthly cost</span>
+        <span>$0 forever</span>
+      </div>
+    </div>
+    <p>
+      Your site content lives on Ethereum. Cloudflare Workers serve it without
+      consuming storage. The bandwidth is handled at the edge, locally to each visitor.
+      There are no servers to pay for. No databases to maintain. Nothing to renew.
+    </p>
+
+    <h2>Claim Your Name</h2>
+    <p>
+      If you do not have an ethscription name yet, you can register one for the cost
+      of a single transaction. Pick something short. Pick something memorable.
+      It will be yours as long as Ethereum exists.
+    </p>
+    <p>
+      If you already own an ethscription name, you can link it to your site right now.
+      Your content. Your rules. Your permanent home on the web.
+    </p>
+
+    <div class="cta">
+      <h3>Try ChainHost</h3>
+      <p>Register a name. Upload your site. Own it forever.</p>
+      <a href="https://chainhost.online" class="button">Get Started</a>
+      <p class="existing">
+        Already have an ethscription name?
+        <a href="https://chainhost.online/upload">Link it to your site</a>
+      </p>
+    </div>
+  </main>
+
+  <footer>
+    <p>
+      Built on Ethereum. Served by <a href="https://chainhost.online">ChainHost</a>.
+    </p>
+    <p style="margin-top: 0.5rem;">
+      GM and Merry Christmas to the builders, the believers, and the ones who refuse to rent their future.
+    </p>
+  </footer>
+</body>
+</html>
