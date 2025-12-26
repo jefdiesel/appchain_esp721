@@ -8,6 +8,16 @@ import {
   ethToWei,
 } from "@/lib/marketplace";
 
+// Convert unicode hostname to punycode for valid URLs
+function toPunycode(name: string): string {
+  try {
+    const url = new URL(`https://${name}.chainhost.online`);
+    return url.hostname.split('.')[0];
+  } catch {
+    return name;
+  }
+}
+
 interface OwnedName {
   name: string;
   txHash: string;
@@ -101,15 +111,20 @@ export default function SellPage() {
 
         for (const eth of data.result) {
           const uri = eth.content_uri || "";
-          // Match data:,name format (lowercase names only)
-          const match = uri.match(/^data:,([a-z0-9-]+)$/);
-          if (match && match[1].length <= 32) {
-            // The ethscription ID IS the transaction hash (not SHA256 of content!)
-            names.push({
-              name: match[1],
-              txHash: eth.transaction_hash,
-              ethscriptionId: eth.transaction_hash, // Protocol uses TX hash as ID
-            });
+          // Match data:,name format (allow unicode names)
+          if (uri.startsWith("data:,")) {
+            const name = decodeURIComponent(uri.slice(6));
+            // Reject uppercase ASCII and invalid subdomain chars
+            const hasUppercase = /[A-Z]/.test(name);
+            const hasInvalidChars = /[\s\/:?#\[\]@!$&'()*+,;=]/.test(name);
+            if (!hasUppercase && !hasInvalidChars && name.length > 0 && name.length <= 32) {
+              // The ethscription ID IS the transaction hash (not SHA256 of content!)
+              names.push({
+                name,
+                txHash: eth.transaction_hash,
+                ethscriptionId: eth.transaction_hash, // Protocol uses TX hash as ID
+              });
+            }
           }
         }
 
