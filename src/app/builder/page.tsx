@@ -91,6 +91,7 @@ interface BlogPost {
 
 // Shared theme styles for all template types
 const sharedStyles = ["classic-degen", "clean-light", "retro-blogger", "template-guide"];
+const linktreeStyles = ["classic-degen", "clean-light", "neon-fade"];
 
 // Template categories with style options
 const templateOptions: TemplateOption[] = [
@@ -117,6 +118,14 @@ const templateOptions: TemplateOption[] = [
     category: "links",
     fields: ["name", "tagline", "links"],
     styles: sharedStyles,
+  },
+  {
+    id: "linktree",
+    name: "Social Linktree",
+    description: "Social media links + collections",
+    category: "linktree",
+    fields: ["name", "tagline", "socials", "collections", "profileImage"],
+    styles: linktreeStyles,
   },
   {
     id: "blog",
@@ -245,6 +254,17 @@ const styleInfo: Record<string, {
     border: "border-purple-500",
     inputBg: "bg-zinc-900",
     inputBorder: "border-zinc-700 focus:border-purple-500",
+  },
+  "neon-fade": {
+    name: "Neon Fade",
+    description: "Crazy animated gradient vibes",
+    preview: "bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 border-cyan-400",
+    bg: "bg-black",
+    text: "text-white",
+    accent: "text-cyan-400",
+    border: "border-cyan-400",
+    inputBg: "bg-zinc-900",
+    inputBorder: "border-zinc-700 focus:border-cyan-400",
   },
 };
 
@@ -632,6 +652,166 @@ function generateBlogPost(data: {
 </html>`;
 }
 
+// Social URL constructors
+const SOCIAL_URLS: Record<string, (u: string) => string> = {
+  twitter: (u) => `https://x.com/${u.replace('@', '')}`,
+  instagram: (u) => `https://instagram.com/${u.replace('@', '')}`,
+  linkedin: (u) => `https://linkedin.com/in/${u}`,
+  github: (u) => `https://github.com/${u}`,
+  tiktok: (u) => `https://tiktok.com/@${u.replace('@', '')}`,
+  farcaster: (u) => `https://warpcast.com/${u}`,
+  ens: (u) => `https://app.ens.domains/${u}`,
+  opensea: (u) => `https://opensea.io/${u}`,
+};
+
+const SOCIAL_LABELS: Record<string, string> = {
+  twitter: "Twitter / X",
+  instagram: "Instagram",
+  linkedin: "LinkedIn",
+  github: "GitHub",
+  tiktok: "TikTok",
+  farcaster: "Farcaster",
+  ens: "ENS",
+  opensea: "OpenSea",
+};
+
+const SOCIAL_ICONS: Record<string, string> = {
+  twitter: `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>`,
+  instagram: `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>`,
+  linkedin: `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>`,
+  github: `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>`,
+  tiktok: `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg>`,
+  farcaster: `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M18.24 3H5.76A2.76 2.76 0 0 0 3 5.76v12.48A2.76 2.76 0 0 0 5.76 21h12.48A2.76 2.76 0 0 0 21 18.24V5.76A2.76 2.76 0 0 0 18.24 3zM8.4 17.4H6V9h2.4v8.4zm6-4.8h-4.8V9h4.8v3.6zm3.6 4.8h-2.4V9H18v8.4z"/></svg>`,
+  ens: `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6.27 7.73L12 2l5.73 5.73L12 13.46 6.27 7.73zM2 12l5.73-5.73L13.46 12l-5.73 5.73L2 12zm10 0l5.73-5.73L23.46 12l-5.73 5.73L12 12zm0 1.46l5.73 5.73L12 25l-5.73-5.81L12 13.46z"/></svg>`,
+  opensea: `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.374 0 12s5.374 12 12 12 12-5.374 12-12S18.629 0 12 0zM5.92 12.403l.051-.081 3.123-4.884a.107.107 0 0 1 .187.014c.52 1.169.972 2.623.76 3.528-.088.372-.335.876-.614 1.342a2.405 2.405 0 0 1-.117.199.106.106 0 0 1-.09.045H6.013a.106.106 0 0 1-.091-.163zm13.914 1.68a.109.109 0 0 1-.065.101c-.243.103-1.07.485-1.414.962-.878 1.222-1.548 2.97-3.048 2.97H9.053a4.019 4.019 0 0 1-4.013-4.028v-.072c0-.058.048-.106.108-.106h3.485c.07 0 .12.063.115.132-.026.226.017.459.125.67.206.42.636.682 1.099.682h1.726v-1.347H9.99a.11.11 0 0 1-.089-.173l.063-.09c.16-.231.391-.586.621-.992.156-.274.308-.566.43-.86.024-.052.043-.107.065-.16.033-.094.067-.182.091-.269a4.57 4.57 0 0 0 .065-.223c.057-.25.081-.514.081-.787 0-.108-.004-.221-.014-.327-.005-.117-.02-.235-.034-.352a3.415 3.415 0 0 0-.048-.312 6.494 6.494 0 0 0-.098-.468l-.014-.06c-.03-.108-.056-.21-.09-.317a11.824 11.824 0 0 0-.328-.972 5.212 5.212 0 0 0-.142-.355c-.072-.178-.146-.339-.213-.49a3.564 3.564 0 0 1-.094-.197 4.658 4.658 0 0 0-.103-.213c-.024-.053-.053-.104-.072-.152l-.211-.388c-.029-.053.019-.118.077-.101l1.32.357h.01l.173.05.192.054.07.019v-.783c0-.379.302-.686.679-.686a.66.66 0 0 1 .477.202.69.69 0 0 1 .2.484V6.65l.141.039c.01.005.022.01.031.017.034.024.084.062.147.11.05.038.103.086.165.137a10.351 10.351 0 0 1 .574.504c.214.199.454.432.684.691.065.074.127.146.192.226.062.079.132.156.19.232.079.104.16.212.235.324.033.053.074.108.105.161.096.142.178.288.257.435.034.067.067.141.096.213.089.197.159.396.202.598a.65.65 0 0 1 .029.132v.01c.014.057.019.12.024.184a2.057 2.057 0 0 1-.106.874c-.031.084-.06.17-.098.254-.075.17-.161.343-.264.502-.034.06-.075.122-.113.182-.043.063-.089.123-.127.18a3.823 3.823 0 0 1-.173.221c-.053.072-.106.144-.166.209-.081.098-.16.19-.245.278-.048.058-.1.118-.156.17-.052.06-.108.113-.156.161-.084.084-.15.147-.208.202l-.137.122a.102.102 0 0 1-.072.03h-1.051v1.346h1.322c.295 0 .576-.104.804-.298.077-.067.415-.36.816-.802a.094.094 0 0 1 .05-.03l3.65-1.057a.108.108 0 0 1 .138.103z"/></svg>`,
+};
+
+function generateLinktree(data: {
+  name: string;
+  tagline: string;
+  profileImage: { src: string; pixelArt: boolean };
+  socials: Record<string, { enabled: boolean; username: string }>;
+  collections: Array<{ name: string; url: string; image: string; pixelArt: boolean }>;
+  theme: string;
+}) {
+  // Helper to resolve image source (URL or tx hash)
+  const getImageSrc = (src: string) => {
+    if (!src) return "";
+    if (src.startsWith("0x") && src.length === 66) {
+      return `https://ethscriptions.com/ethscriptions/${src}/content`;
+    }
+    return src;
+  };
+
+  // Build social links HTML
+  const socialLinksHtml = Object.entries(data.socials)
+    .filter(([, s]) => s.enabled && s.username)
+    .map(([key, s]) => {
+      const url = SOCIAL_URLS[key](s.username);
+      const icon = SOCIAL_ICONS[key];
+      const label = SOCIAL_LABELS[key];
+      return `<a class="social-link" href="${url}" target="_blank" rel="noopener">
+        <span class="social-icon">${icon}</span>
+        <span class="social-label">${label}</span>
+        <span class="social-user">@${s.username.replace('@', '')}</span>
+      </a>`;
+    })
+    .join("\n");
+
+  // Build collections HTML
+  const collectionsHtml = data.collections
+    .filter(c => c.name && c.url)
+    .map(c => {
+      const imgSrc = getImageSrc(c.image);
+      const pixelStyle = c.pixelArt ? ' style="image-rendering: pixelated"' : '';
+      return `<a class="collection" href="${c.url}" target="_blank" rel="noopener">
+        ${imgSrc ? `<img src="${imgSrc}" alt="${c.name}"${pixelStyle}>` : '<div class="collection-placeholder"></div>'}
+        <span class="collection-name">${c.name}</span>
+      </a>`;
+    })
+    .join("\n");
+
+  // Profile image HTML
+  const profileImgSrc = getImageSrc(data.profileImage.src);
+  const profilePixelStyle = data.profileImage.pixelArt ? ' style="image-rendering: pixelated"' : '';
+  const profileHtml = profileImgSrc
+    ? `<img class="profile-img" src="${profileImgSrc}" alt="${data.name}"${profilePixelStyle}>`
+    : `<div class="profile-placeholder"></div>`;
+
+  // Theme-specific styles
+  const themeStyles: Record<string, { bg: string; text: string; accent: string; card: string; hover: string }> = {
+    "classic-degen": {
+      bg: "#000",
+      text: "#fff",
+      accent: "#C3FF00",
+      card: "#111",
+      hover: "#C3FF00",
+    },
+    "clean-light": {
+      bg: "#fff",
+      text: "#333",
+      accent: "#3b82f6",
+      card: "#f8fafc",
+      hover: "#3b82f6",
+    },
+    "neon-fade": {
+      bg: "linear-gradient(135deg, #0f0f23 0%, #1a0a2e 50%, #0f1729 100%)",
+      text: "#fff",
+      accent: "#00ffff",
+      card: "rgba(255,255,255,0.05)",
+      hover: "#ff00ff",
+    },
+  };
+
+  const theme = themeStyles[data.theme] || themeStyles["classic-degen"];
+  const isNeonFade = data.theme === "neon-fade";
+  const bgStyle = isNeonFade ? `background:${theme.bg}` : `background:${theme.bg}`;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${data.name}</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:system-ui,-apple-system,sans-serif;${bgStyle};color:${theme.text};min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+    ${isNeonFade ? `
+    @keyframes glow{0%,100%{filter:drop-shadow(0 0 8px #ff00ff)}50%{filter:drop-shadow(0 0 16px #00ffff)}}
+    @keyframes borderGlow{0%,100%{border-color:#ff00ff}50%{border-color:#00ffff}}
+    ` : ''}
+    .container{max-width:420px;width:100%;text-align:center}
+    .profile-img{width:120px;height:120px;border-radius:50%;object-fit:cover;border:3px solid ${theme.accent};margin-bottom:1rem;${isNeonFade ? 'animation:glow 3s ease-in-out infinite' : ''}}
+    .profile-placeholder{width:120px;height:120px;border-radius:50%;background:${theme.card};border:3px solid ${theme.accent};margin:0 auto 1rem}
+    h1{font-size:1.75rem;margin-bottom:0.25rem;font-weight:700}
+    .tagline{color:${theme.accent};opacity:0.8;margin-bottom:1.5rem}
+    .socials{display:flex;flex-direction:column;gap:10px;margin-bottom:2rem}
+    .social-link{display:flex;align-items:center;gap:12px;padding:14px 20px;background:${theme.card};border:1px solid rgba(255,255,255,0.1);border-radius:12px;color:${theme.text};text-decoration:none;transition:all 0.2s;${isNeonFade ? 'animation:borderGlow 4s ease-in-out infinite' : ''}}
+    .social-link:hover{background:${theme.hover};color:${data.theme === 'clean-light' ? '#fff' : '#000'};transform:translateY(-2px);${isNeonFade ? 'box-shadow:0 0 20px ' + theme.hover : ''}}
+    .social-icon{width:24px;height:24px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .social-label{font-weight:600;flex:1;text-align:left}
+    .social-user{opacity:0.6;font-size:0.9rem}
+    .collections-title{font-size:0.85rem;text-transform:uppercase;letter-spacing:0.1em;opacity:0.5;margin-bottom:1rem}
+    .collections{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:12px}
+    .collection{display:flex;flex-direction:column;align-items:center;padding:12px;background:${theme.card};border:1px solid rgba(255,255,255,0.1);border-radius:12px;color:${theme.text};text-decoration:none;transition:all 0.2s}
+    .collection:hover{border-color:${theme.accent};transform:translateY(-2px)}
+    .collection img{width:64px;height:64px;border-radius:8px;object-fit:cover;margin-bottom:8px}
+    .collection-placeholder{width:64px;height:64px;border-radius:8px;background:rgba(255,255,255,0.1);margin-bottom:8px}
+    .collection-name{font-size:0.85rem;font-weight:500;text-align:center}
+  </style>
+</head>
+<body>
+  <main class="container">
+    ${profileHtml}
+    <h1>${data.name}</h1>
+    <p class="tagline">${data.tagline}</p>
+    ${socialLinksHtml ? `<div class="socials">${socialLinksHtml}</div>` : ''}
+    ${collectionsHtml ? `<p class="collections-title">Collections</p><div class="collections">${collectionsHtml}</div>` : ''}
+  </main>
+</body>
+</html>`;
+}
+
 function BuilderContent() {
   const searchParams = useSearchParams();
   const initialStep = (searchParams.get("step") as Step) || "template";
@@ -679,6 +859,25 @@ function BuilderContent() {
   const [selectedChain, setSelectedChain] = useState<ChainOption>("base");
   const [bannerTx, setBannerTx] = useState(""); // tx hash for 800x400 banner
   const [bannerPixelArt, setBannerPixelArt] = useState(false); // pixel art upscaling
+
+  // Social Linktree state
+  const [profileImage, setProfileImage] = useState({ src: "", pixelArt: false });
+  const [socials, setSocials] = useState({
+    twitter: { enabled: false, username: "" },
+    instagram: { enabled: false, username: "" },
+    linkedin: { enabled: false, username: "" },
+    github: { enabled: false, username: "" },
+    tiktok: { enabled: false, username: "" },
+    farcaster: { enabled: false, username: "" },
+    ens: { enabled: false, username: "" },
+    opensea: { enabled: false, username: "" },
+  });
+  const [collections, setCollections] = useState<Array<{
+    name: string;
+    url: string;
+    image: string;
+    pixelArt: boolean;
+  }>>([{ name: "", url: "", image: "", pixelArt: false }]);
 
   // Credits state
   const [credits, setCredits] = useState<{
@@ -1197,6 +1396,167 @@ function BuilderContent() {
               </div>
             )}
 
+            {/* Social Linktree */}
+            {selectedTemplate === "linktree" && (
+              <div className="space-y-6">
+                {/* Profile Image */}
+                <div>
+                  <label className={`block text-sm mb-2 ${currentTheme ? 'opacity-70 ' + currentTheme.text : 'text-gray-400'}`}>Profile Image</label>
+                  <div className="flex gap-3">
+                    <input
+                      type="text"
+                      value={profileImage.src}
+                      onChange={(e) => setProfileImage({ ...profileImage, src: e.target.value })}
+                      className={`flex-1 rounded-xl px-4 py-3 font-mono text-sm focus:outline-none ${currentTheme ? currentTheme.inputBg + ' border ' + currentTheme.inputBorder + ' ' + currentTheme.text : 'bg-zinc-900 border border-zinc-800 text-white focus:border-[#C3FF00]'}`}
+                      placeholder="0x... or https://..."
+                    />
+                    <label className={`flex items-center gap-2 px-4 py-3 rounded-xl cursor-pointer ${currentTheme ? currentTheme.inputBg + ' border ' + currentTheme.inputBorder : 'bg-zinc-900 border border-zinc-800'}`}>
+                      <input
+                        type="checkbox"
+                        checked={profileImage.pixelArt}
+                        onChange={(e) => setProfileImage({ ...profileImage, pixelArt: e.target.checked })}
+                        className="w-4 h-4 accent-[#C3FF00]"
+                      />
+                      <span className={`text-sm ${currentTheme ? currentTheme.text : 'text-white'}`}>Pixel</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Name & Tagline */}
+                <div>
+                  <label className={`block text-sm mb-2 ${currentTheme ? 'opacity-70 ' + currentTheme.text : 'text-gray-400'}`}>Display Name</label>
+                  <input
+                    type="text"
+                    value={siteName}
+                    onChange={(e) => setSiteName(e.target.value)}
+                    className={`w-full rounded-xl px-4 py-3 focus:outline-none ${currentTheme ? currentTheme.inputBg + ' border ' + currentTheme.inputBorder + ' ' + currentTheme.text : 'bg-zinc-900 border border-zinc-800 text-white focus:border-[#C3FF00]'}`}
+                    placeholder="Your name or handle"
+                  />
+                </div>
+                <div>
+                  <label className={`block text-sm mb-2 ${currentTheme ? 'opacity-70 ' + currentTheme.text : 'text-gray-400'}`}>Tagline</label>
+                  <input
+                    type="text"
+                    value={tagline}
+                    onChange={(e) => setTagline(e.target.value)}
+                    className={`w-full rounded-xl px-4 py-3 focus:outline-none ${currentTheme ? currentTheme.inputBg + ' border ' + currentTheme.inputBorder + ' ' + currentTheme.text : 'bg-zinc-900 border border-zinc-800 text-white focus:border-[#C3FF00]'}`}
+                    placeholder="Creator | Builder | Collector"
+                  />
+                </div>
+
+                {/* Social Links */}
+                <div>
+                  <label className={`block text-sm mb-3 ${currentTheme ? 'opacity-70 ' + currentTheme.text : 'text-gray-400'}`}>Social Links</label>
+                  <div className="space-y-3">
+                    {(Object.keys(socials) as Array<keyof typeof socials>).map((key) => (
+                      <div key={key} className={`flex items-center gap-3 p-3 rounded-xl ${currentTheme ? currentTheme.inputBg + '/50 border border-zinc-700' : 'bg-zinc-900/50 border border-zinc-800'}`}>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={socials[key].enabled}
+                            onChange={(e) => setSocials({
+                              ...socials,
+                              [key]: { ...socials[key], enabled: e.target.checked }
+                            })}
+                            className="w-4 h-4 accent-[#C3FF00]"
+                          />
+                          <span className={`w-24 text-sm font-medium ${currentTheme ? currentTheme.text : 'text-white'}`}>
+                            {SOCIAL_LABELS[key]}
+                          </span>
+                        </label>
+                        <input
+                          type="text"
+                          value={socials[key].username}
+                          onChange={(e) => setSocials({
+                            ...socials,
+                            [key]: { ...socials[key], username: e.target.value, enabled: true }
+                          })}
+                          disabled={!socials[key].enabled && !socials[key].username}
+                          className={`flex-1 rounded-lg px-3 py-2 text-sm focus:outline-none ${currentTheme ? currentTheme.inputBg + ' border ' + currentTheme.inputBorder + ' ' + currentTheme.text : 'bg-zinc-900 border border-zinc-800 text-white focus:border-[#C3FF00]'} disabled:opacity-50`}
+                          placeholder={key === 'ens' ? 'name.eth' : key === 'linkedin' ? 'username' : '@username'}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Collections */}
+                <div>
+                  <label className={`block text-sm mb-3 ${currentTheme ? 'opacity-70 ' + currentTheme.text : 'text-gray-400'}`}>Collections</label>
+                  <div className="space-y-4">
+                    {collections.map((col, i) => (
+                      <div key={i} className={`p-4 rounded-xl space-y-3 ${currentTheme ? currentTheme.inputBg + '/50 border border-zinc-700' : 'bg-zinc-900/50 border border-zinc-800'}`}>
+                        <div className="flex gap-3">
+                          <input
+                            type="text"
+                            value={col.name}
+                            onChange={(e) => {
+                              const newCols = [...collections];
+                              newCols[i].name = e.target.value;
+                              setCollections(newCols);
+                            }}
+                            className={`flex-1 rounded-lg px-4 py-2 focus:outline-none ${currentTheme ? currentTheme.inputBg + ' border ' + currentTheme.inputBorder + ' ' + currentTheme.text : 'bg-zinc-900 border border-zinc-800 text-white focus:border-[#C3FF00]'}`}
+                            placeholder="Collection name"
+                          />
+                          {collections.length > 1 && (
+                            <button
+                              onClick={() => setCollections(collections.filter((_, idx) => idx !== i))}
+                              className="px-3 py-2 text-red-400 hover:text-red-300 transition"
+                            >
+                              &times;
+                            </button>
+                          )}
+                        </div>
+                        <input
+                          type="url"
+                          value={col.url}
+                          onChange={(e) => {
+                            const newCols = [...collections];
+                            newCols[i].url = e.target.value;
+                            setCollections(newCols);
+                          }}
+                          className={`w-full rounded-lg px-4 py-2 focus:outline-none ${currentTheme ? currentTheme.inputBg + ' border ' + currentTheme.inputBorder + ' ' + currentTheme.text : 'bg-zinc-900 border border-zinc-800 text-white focus:border-[#C3FF00]'}`}
+                          placeholder="https://opensea.io/collection/..."
+                        />
+                        <div className="flex gap-3">
+                          <input
+                            type="text"
+                            value={col.image}
+                            onChange={(e) => {
+                              const newCols = [...collections];
+                              newCols[i].image = e.target.value;
+                              setCollections(newCols);
+                            }}
+                            className={`flex-1 rounded-lg px-4 py-2 text-sm font-mono focus:outline-none ${currentTheme ? currentTheme.inputBg + ' border ' + currentTheme.inputBorder + ' ' + currentTheme.text : 'bg-zinc-900 border border-zinc-800 text-white focus:border-[#C3FF00]'}`}
+                            placeholder="Image: 0x... or URL"
+                          />
+                          <label className={`flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer ${currentTheme ? currentTheme.inputBg + ' border ' + currentTheme.inputBorder : 'bg-zinc-900 border border-zinc-800'}`}>
+                            <input
+                              type="checkbox"
+                              checked={col.pixelArt}
+                              onChange={(e) => {
+                                const newCols = [...collections];
+                                newCols[i].pixelArt = e.target.checked;
+                                setCollections(newCols);
+                              }}
+                              className="w-4 h-4 accent-[#C3FF00]"
+                            />
+                            <span className={`text-sm ${currentTheme ? currentTheme.text : 'text-white'}`}>Pixel</span>
+                          </label>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => setCollections([...collections, { name: "", url: "", image: "", pixelArt: false }])}
+                    className={`mt-3 text-sm hover:underline ${currentTheme ? currentTheme.accent : 'text-[#C3FF00]'}`}
+                  >
+                    + Add collection
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Blog Post */}
             {selectedTemplate === "blog" && (
               <div className="space-y-6">
@@ -1399,6 +1759,15 @@ function BuilderContent() {
                         username: username || "",
                         bannerTx: bannerTx,
                         bannerPixelArt: bannerPixelArt,
+                      });
+                    } else if (selectedTemplate === "linktree") {
+                      html = generateLinktree({
+                        name: siteName,
+                        tagline,
+                        profileImage,
+                        socials,
+                        collections,
+                        theme: selectedStyle || "classic-degen",
                       });
                     }
                   }
