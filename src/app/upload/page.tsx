@@ -23,6 +23,17 @@ interface OwnedName {
 
 type SortOption = "newest" | "oldest" | "az" | "za";
 
+// Convert unicode hostname to punycode for valid URLs
+function toPunycode(name: string): string {
+  try {
+    // Use URL constructor which handles punycode automatically
+    const url = new URL(`https://${name}.chainhost.online`);
+    return url.hostname.split('.')[0];
+  } catch {
+    // Fallback: return original name
+    return name;
+  }
+}
 
 function UploadContent() {
   const searchParams = useSearchParams();
@@ -43,6 +54,8 @@ function UploadContent() {
   const [manifestTx, setManifestTx] = useState<string | null>(null);
   const [inscribingManifest, setInscribingManifest] = useState(false);
   const [error, setError] = useState("");
+  const [cacheCleared, setCacheCleared] = useState(false);
+  const [clearingCache, setClearingCache] = useState(false);
 
   // Scan wallet for owned names (cursor-based pagination)
   const scanWalletForNames = async (wallet: string) => {
@@ -62,9 +75,12 @@ function UploadContent() {
         if (data.result?.length) {
           for (const eth of data.result) {
             if (eth.content_uri?.startsWith("data:,")) {
-              const name = eth.content_uri.slice(6);
-              // Only lowercase names - URLs don't support capitals
-              if (/^[a-z0-9-]+$/.test(name) && name.length <= 32) {
+              const name = decodeURIComponent(eth.content_uri.slice(6));
+              // Allow unicode names, reject uppercase ASCII (subdomains are case-insensitive)
+              // Names must be <= 32 chars and not contain spaces or invalid subdomain chars
+              const hasUppercase = /[A-Z]/.test(name);
+              const hasInvalidChars = /[\s\/:?#\[\]@!$&'()*+,;=]/.test(name);
+              if (!hasUppercase && !hasInvalidChars && name.length > 0 && name.length <= 32) {
                 allNames.push({
                   name,
                   txHash: eth.transaction_hash,
@@ -371,6 +387,26 @@ function UploadContent() {
     chain === "eth"
       ? `https://etherscan.io/tx/${tx}`
       : `https://basescan.org/tx/${tx}`;
+
+  // Clear cache for this name
+  const clearCache = async () => {
+    if (!username) return;
+    setClearingCache(true);
+    try {
+      const punycodeHost = toPunycode(username);
+      const res = await fetch(
+        `https://${punycodeHost}.chainhost.online/_clear?name=${encodeURIComponent(username)}&key=ch0st-cl34r-2024`
+      );
+      if (res.ok) {
+        setCacheCleared(true);
+      } else {
+        setError("Failed to clear cache");
+      }
+    } catch (e) {
+      setError("Failed to clear cache");
+    }
+    setClearingCache(false);
+  };
 
   // Filter and sort names
   const filteredNames = ownedNames
@@ -726,9 +762,19 @@ function UploadContent() {
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-[#C3FF00]">
-              <span>✓</span>
-              <span>Inscribed on {homeFile.chain === "eth" ? "Ethereum" : "Base"}</span>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-[#C3FF00]">
+                <span>✓</span>
+                <span>Inscribed on {homeFile.chain === "eth" ? "Ethereum" : "Base"}</span>
+              </div>
+              <p className="text-xs text-gray-500">
+                Tx: <code className="text-[#C3FF00]">{homeFile.txHash?.slice(0, 20)}...</code>
+              </p>
+              {!manifestTx && (
+                <p className="text-xs text-yellow-500">
+                  → Update your manifest below to link to this new content
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -791,9 +837,19 @@ function UploadContent() {
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-2 text-[#C3FF00]">
-              <span>✓</span>
-              <span>Inscribed on {aboutFile.chain === "eth" ? "Ethereum" : "Base"}</span>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-[#C3FF00]">
+                <span>✓</span>
+                <span>Inscribed on {aboutFile.chain === "eth" ? "Ethereum" : "Base"}</span>
+              </div>
+              <p className="text-xs text-gray-500">
+                Tx: <code className="text-[#C3FF00]">{aboutFile.txHash?.slice(0, 20)}...</code>
+              </p>
+              {!manifestTx && (
+                <p className="text-xs text-yellow-500">
+                  → Update your manifest below to link to this new content
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -837,19 +893,37 @@ function UploadContent() {
         {manifestTx && (
           <div className="bg-[#C3FF00]/10 border border-[#C3FF00] rounded-xl p-6 text-center space-y-4">
             <div className="text-[#C3FF00] text-3xl">✓</div>
-            <h2 className="text-xl font-bold">Your site is live!</h2>
-            <a
-              href={`https://${username}.chainhost.online`}
-              target="_blank"
-              className="block text-[#C3FF00] hover:underline"
-            >
-              {username}.chainhost.online →
-            </a>
+            <h2 className="text-xl font-bold">Manifest inscribed!</h2>
             <p className="text-xs text-gray-500 font-mono mb-2">{manifestTx}</p>
-            <p className="text-xs text-gray-400">Wait ~30 seconds for the block to confirm</p>
+            <p className="text-sm text-gray-400">Wait ~30 seconds for the block to confirm, then clear the cache:</p>
+
+            {!cacheCleared ? (
+              <button
+                onClick={clearCache}
+                disabled={clearingCache}
+                className="w-full py-3 bg-[#C3FF00] text-black font-bold rounded-lg hover:bg-[#d4ff4d] disabled:opacity-50"
+              >
+                {clearingCache ? "Clearing..." : "Clear Cache"}
+              </button>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center justify-center gap-2 text-[#C3FF00]">
+                  <span>✓</span>
+                  <span>Cache cleared!</span>
+                </div>
+                <a
+                  href={`https://${toPunycode(username)}.chainhost.online`}
+                  target="_blank"
+                  className="block text-[#C3FF00] hover:underline text-lg font-semibold"
+                >
+                  {username}.chainhost.online →
+                </a>
+              </div>
+            )}
+
             <Link
               href="/register"
-              className="inline-block mt-4 px-6 py-2 border border-zinc-700 rounded-lg hover:border-[#C3FF00]"
+              className="inline-block mt-4 px-6 py-2 border border-zinc-700 rounded-lg hover:border-[#C3FF00] text-sm"
             >
               Register Another Name
             </Link>
