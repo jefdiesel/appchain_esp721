@@ -12,11 +12,360 @@
 const ETHSCRIPTIONS_API = 'https://api.ethscriptions.com/v2';
 const BASE_RPC = 'https://mainnet.base.org';
 const ETH_RPC = 'https://eth.llamarpc.com';
+const SEPOLIA_RPC = 'https://rpc.sepolia.org';
 const GIT_REPO = 'https://github.com/jefdiesel/chainhost';
 const FAVICON = 'https://chainhost.online/favicon.png';
 
 // Cache TTL in seconds (1 hour for manifests)
 const MANIFEST_CACHE_TTL = 3600;
+
+// chost.app landing page
+const CHOST_LANDING = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>chost.app - Fork Your Own Mirror</title>
+  <link rel="icon" href="${FAVICON}">
+  <meta property="og:title" content="chost.app">
+  <meta property="og:description" content="Fork your own on-chain hosting mirror">
+  <meta property="og:url" content="https://chost.app">
+  <meta property="og:site_name" content="ChainHost">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #000;
+      color: #e8e8e8;
+      min-height: 100vh;
+      line-height: 1.7;
+    }
+    .header {
+      padding: 60px 20px;
+      text-align: center;
+      border-bottom: 1px solid #222;
+    }
+    .logo {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 1.5rem;
+    }
+    h1 {
+      font-size: 2.5rem;
+      font-weight: bold;
+      margin-bottom: 0.5rem;
+    }
+    h1 .highlight { color: #C3FF00; }
+    .tagline {
+      color: #888;
+      font-size: 1.125rem;
+    }
+    main {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 60px 20px;
+    }
+    h2 {
+      color: #C3FF00;
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 1rem;
+      margin-top: 3rem;
+    }
+    h2:first-of-type { margin-top: 0; }
+    p {
+      margin-bottom: 1.5rem;
+      color: #aaa;
+    }
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin: 1.5rem 0;
+    }
+    .step {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+      background: #0a0a0a;
+      border: 1px solid #222;
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .num {
+      width: 32px;
+      height: 32px;
+      background: #C3FF00;
+      color: #000;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .step-content { flex: 1; }
+    .step-content strong {
+      color: #fff;
+      display: block;
+      margin-bottom: 4px;
+    }
+    .step-content span { color: #666; font-size: 0.9rem; }
+    code {
+      background: #111;
+      border: 1px solid #333;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.85rem;
+      color: #C3FF00;
+    }
+    .links {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 2rem;
+    }
+    .link {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      background: #0a0a0a;
+      border: 1px solid #222;
+      border-radius: 12px;
+      color: #fff;
+      text-decoration: none;
+      transition: border-color 0.2s;
+    }
+    .link:hover { border-color: #C3FF00; }
+    .link span { color: #C3FF00; }
+    footer {
+      text-align: center;
+      padding: 40px 20px;
+      border-top: 1px solid #222;
+      color: #444;
+      font-size: 0.875rem;
+    }
+    footer a {
+      color: #C3FF00;
+      text-decoration: none;
+    }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <img src="${FAVICON}" alt="" class="logo">
+    <h1><span class="highlight">chost</span>.app</h1>
+    <p class="tagline">Fork your own on-chain hosting mirror</p>
+  </header>
+
+  <main>
+    <h2>What is this?</h2>
+    <p>
+      This is a mirror of ChainHost, serving websites stored permanently on Ethereum.
+      The entire system is open source. You can run your own mirror in minutes.
+    </p>
+    <p>
+      Your content lives on-chain forever. Mirrors just make it accessible via
+      normal URLs. If one mirror goes down, spin up another. The data is immortal.
+    </p>
+
+    <h2>Run Your Own Mirror</h2>
+    <div class="steps">
+      <div class="step">
+        <div class="num">1</div>
+        <div class="step-content">
+          <strong>Clone the repository</strong>
+          <span><code>git clone ${GIT_REPO}</code></span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">2</div>
+        <div class="step-content">
+          <strong>Create a free Cloudflare account</strong>
+          <span>Workers free tier: 100k requests/day</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">3</div>
+        <div class="step-content">
+          <strong>Deploy the worker</strong>
+          <span><code>cd cloudflare-worker && npx wrangler deploy</code></span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="num">4</div>
+        <div class="step-content">
+          <strong>Add your domain</strong>
+          <span>Point <code>*.yourdomain.com</code> to the worker</span>
+        </div>
+      </div>
+    </div>
+
+    <h2>Links</h2>
+    <div class="links">
+      <a href="https://chainhost.online" class="link">
+        ChainHost - Main Site
+        <span>&rarr;</span>
+      </a>
+      <a href="${GIT_REPO}" class="link">
+        GitHub Repository
+        <span>&rarr;</span>
+      </a>
+      <a href="https://twitter.com/jefdiesel" class="link">
+        @jefdiesel on Twitter
+        <span>&rarr;</span>
+      </a>
+    </div>
+  </main>
+
+  <footer>
+    <p>Permanent hosting powered by <a href="https://ethscriptions.com">Ethscriptions</a></p>
+  </footer>
+</body>
+</html>`;
+
+// immutable.church landing page
+const IMMUTABLE_LANDING = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>immutable.church - Permanent On-Chain Hosting</title>
+  <link rel="icon" href="${FAVICON}">
+  <meta property="og:title" content="immutable.church">
+  <meta property="og:description" content="Permanent websites on Ethereum">
+  <meta property="og:url" content="https://immutable.church">
+  <meta property="og:site_name" content="ChainHost">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #000;
+      color: #e8e8e8;
+      min-height: 100vh;
+      line-height: 1.7;
+    }
+    .header {
+      padding: 60px 20px;
+      text-align: center;
+      border-bottom: 1px solid #222;
+    }
+    .logo {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 1.5rem;
+    }
+    h1 {
+      font-size: 2.5rem;
+      font-weight: bold;
+      margin-bottom: 0.5rem;
+    }
+    h1 .highlight { color: #C3FF00; }
+    .tagline {
+      color: #888;
+      font-size: 1.125rem;
+    }
+    main {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 60px 20px;
+    }
+    h2 {
+      color: #C3FF00;
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 1rem;
+      margin-top: 3rem;
+    }
+    h2:first-of-type { margin-top: 0; }
+    p {
+      margin-bottom: 1.5rem;
+      color: #aaa;
+    }
+    .links {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 2rem;
+    }
+    .link {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      background: #0a0a0a;
+      border: 1px solid #222;
+      border-radius: 12px;
+      color: #fff;
+      text-decoration: none;
+      transition: border-color 0.2s;
+    }
+    .link:hover { border-color: #C3FF00; }
+    .link span { color: #C3FF00; }
+    footer {
+      text-align: center;
+      padding: 40px 20px;
+      border-top: 1px solid #222;
+      color: #444;
+      font-size: 0.875rem;
+    }
+    footer a {
+      color: #C3FF00;
+      text-decoration: none;
+    }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <img src="${FAVICON}" alt="" class="logo">
+    <h1><span class="highlight">immutable</span>.church</h1>
+    <p class="tagline">Permanent websites on Ethereum</p>
+  </header>
+
+  <main>
+    <h2>What is this?</h2>
+    <p>
+      This is a mirror of ChainHost, serving websites stored permanently on Ethereum.
+      Your content lives on-chain forever. No servers. No renewals. No takedowns.
+    </p>
+    <p>
+      Every site hosted here is immutable. Once inscribed, it cannot be changed or removed.
+      The blockchain is your church of permanence.
+    </p>
+
+    <h2>Get Started</h2>
+    <p>
+      Register a name, upload your HTML, and your site lives forever.
+      All for the cost of a single Ethereum transaction.
+    </p>
+
+    <h2>Links</h2>
+    <div class="links">
+      <a href="https://chainhost.online" class="link">
+        ChainHost - Register a Name
+        <span>&rarr;</span>
+      </a>
+      <a href="${GIT_REPO}" class="link">
+        GitHub - Self-Host Your Own Mirror
+        <span>&rarr;</span>
+      </a>
+      <a href="https://twitter.com/jefdiesel" class="link">
+        @jefdiesel on Twitter
+        <span>&rarr;</span>
+      </a>
+    </div>
+  </main>
+
+  <footer>
+    <p>Permanent hosting powered by <a href="https://ethscriptions.com">Ethscriptions</a></p>
+  </footer>
+</body>
+</html>`;
 
 export default {
   async fetch(request, env) {
@@ -24,18 +373,122 @@ export default {
     const hostname = url.hostname;
     const path = url.pathname;
 
-    // Extract subdomain
+    // Serve landing pages for root domains
+    if (hostname === 'chost.app' || hostname === 'www.chost.app') {
+      return new Response(CHOST_LANDING, {
+        headers: { 'Content-Type': 'text/html' },
+      });
+    }
+    if (hostname === 'immutable.church' || hostname === 'www.immutable.church') {
+      // Serve from inscription
+      const IMMUTABLE_HOME_TX = '0xfc5e9976018b6b663c0182ea5388b308d74b8282fe2dfc23a54bb86098eaabc0';
+      const content = await fetchTxContentRaw(IMMUTABLE_HOME_TX);
+      if (content?.decoded || content?.dataUri) {
+        let html = content.decoded || content.dataUri;
+        // Inject SEO, OG tags and favicon
+        const seoTags = `
+<link rel="icon" href="${FAVICON}">
+<meta name="description" content="From the void came the Chain. No gods, no masters—only mathematics and consensus. That which is written to the eternal ledger cannot be unwritten.">
+<meta property="og:title" content="The Church of Immutable Truth">
+<meta property="og:description" content="From the void came the Chain. No gods, no masters—only mathematics and consensus. That which is written to the eternal ledger cannot be unwritten. That which is verified by proof cannot be denied.">
+<meta property="og:url" content="https://immutable.church">
+<meta property="og:site_name" content="immutable.church">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="The Church of Immutable Truth">
+<meta name="twitter:description" content="We who inscribe these words trust not in faith but in cryptographic certainty.">
+`;
+        if (html.includes('</head>')) {
+          html = html.replace('</head>', seoTags + '</head>');
+        }
+        return new Response(html, {
+          headers: { 'Content-Type': 'text/html' },
+        });
+      }
+      // Fallback to static landing if fetch fails
+      return new Response(IMMUTABLE_LANDING, {
+        headers: { 'Content-Type': 'text/html' },
+      });
+    }
+
+    // Robots.txt - allow all crawlers
+    if (path === '/robots.txt') {
+      const sitemapDomain = hostname.includes('immutable') ? 'immutable.church' :
+                            hostname.includes('chost') ? 'chost.app' : 'chainhost.online';
+      return new Response(`User-agent: *\nAllow: /\nSitemap: https://${sitemapDomain}/sitemap.xml\n`, {
+        headers: { 'Content-Type': 'text/plain' },
+      });
+    }
+
+    // Sitemap with featured sites
+    if (path === '/sitemap.xml') {
+      const baseDomain = hostname.includes('immutable') ? 'immutable.church' :
+                         hostname.includes('chost') ? 'chost.app' : 'chainhost.online';
+      const featured = ['degenjef', 'gmerrychristmas', 'lemmings', 'emulator', 'dkc', 'starfox2', 'supermarioworld'];
+      const urls = featured.map(name =>
+        `  <url><loc>https://${name}.${baseDomain}/</loc><changefreq>monthly</changefreq></url>`
+      ).join('\n');
+      const sitemap = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://${baseDomain}/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+${urls}
+</urlset>`;
+      return new Response(sitemap, {
+        headers: { 'Content-Type': 'application/xml' },
+      });
+    }
+
+    // Cache clear endpoint: /_clear?name=foo&key=SECRET
+    if (path === '/_clear') {
+      const name = url.searchParams.get('name');
+      const key = url.searchParams.get('key');
+
+      // Simple auth - check against env secret
+      if (key !== env.CACHE_CLEAR_KEY) {
+        return new Response('Unauthorized', { status: 401 });
+      }
+
+      if (!name) {
+        return new Response('Missing name parameter', { status: 400 });
+      }
+
+      // Find owner of the name
+      const nameSha = await sha256(`data:,${name}`);
+      const nameRes = await fetch(`${ETHSCRIPTIONS_API}/ethscriptions/exists/0x${nameSha}`);
+      const nameData = await nameRes.json();
+
+      if (!nameData?.result?.exists) {
+        return new Response(`Name "${name}" not found`, { status: 404 });
+      }
+
+      const owner = nameData.result.ethscription.current_owner;
+      const cacheKey = `manifest:${owner.toLowerCase()}:${name}`;
+
+      if (env.CACHE) {
+        await env.CACHE.delete(cacheKey);
+      }
+
+      return new Response(`Cache cleared for ${name}`, { status: 200 });
+    }
+
+    // Extract subdomain - support chainhost.online, chost.app, immutable.church
     const parts = hostname.split('.');
-    if (parts.length < 3 || parts[parts.length - 2] !== 'chainhost') {
+    const isChainhost = parts.length >= 3 && parts[parts.length - 2] === 'chainhost';
+    const isChost = parts.length >= 3 && parts[parts.length - 2] === 'chost';
+    const isImmutable = parts.length >= 3 && parts[parts.length - 2] === 'immutable';
+
+    if (!isChainhost && !isChost && !isImmutable) {
       return new Response('Invalid hostname', { status: 400 });
     }
 
-    let name = parts[0].toLowerCase();
+    // Decode punycode for internationalized domain names (e.g., xn--kpry57d -> 梦)
+    let name = decodePunycode(parts[0].toLowerCase());
+    const baseDomain = isImmutable ? 'immutable.church' : (isChost ? 'chost.app' : 'chainhost.online');
 
     // Skip reserved subdomains
     const reserved = ['www', 'api', 'app', 'dashboard', 'admin', 'mail', 'ftp'];
     if (reserved.includes(name)) {
-      return Response.redirect('https://chainhost.online' + path, 302);
+      return Response.redirect(`https://${baseDomain}` + path, 302);
     }
 
     try {
@@ -45,7 +498,7 @@ export default {
       const nameData = await nameRes.json();
 
       if (!nameData?.result?.exists) {
-        return new Response(notClaimedPage(name), {
+        return new Response(notClaimedPage(name, baseDomain), {
           status: 404,
           headers: { 'Content-Type': 'text/html' },
         });
@@ -55,14 +508,14 @@ export default {
 
       // 2. Handle special routes
       if (path === '/recovery') {
-        return new Response(recoveryPage(name, owner), {
+        return new Response(recoveryPage(name, owner, baseDomain), {
           headers: { 'Content-Type': 'text/html' },
         });
       }
 
       if (path === '/previous') {
         const history = await getInscriptionHistory(owner, name);
-        return new Response(previousPage(name, owner, history), {
+        return new Response(previousPage(name, owner, history, baseDomain), {
           headers: { 'Content-Type': 'text/html' },
         });
       }
@@ -77,11 +530,18 @@ export default {
         return await serveTxContent(txHash, pixelArt, name);
       }
 
+      // Handle /mail/* routes for email functionality
+      if (path === '/mail' || path.startsWith('/mail/')) {
+        // Dynamically import mail routes (or inline if bundled)
+        const { handleMailRoute } = await import('./mail-routes.js');
+        return await handleMailRoute(request, env, name, owner, baseDomain);
+      }
+
       // 3. Find owner's chainhost manifest for this specific name (with caching)
       const manifest = await findManifestCached(env, owner, name);
 
       if (!manifest) {
-        return new Response(noManifestPage(name, owner), {
+        return new Response(noManifestPage(name, owner, baseDomain), {
           status: 200,
           headers: { 'Content-Type': 'text/html' },
         });
@@ -114,7 +574,7 @@ export default {
 
       if (isImage) {
         // Serve image wrapped in HTML
-        const html = imagePageHtml(name, rawContent.dataUri, txHash, pixelArt, manifest);
+        const html = imagePageHtml(name, rawContent.dataUri, txHash, pixelArt, manifest, baseDomain);
         return new Response(html, {
           headers: { 'Content-Type': 'text/html' },
         });
@@ -122,8 +582,8 @@ export default {
 
       // 6. For HTML, inject OG tags and footer
       let content = rawContent.decoded || rawContent.dataUri || '';
-      content = injectOgTags(content, name);
-      content = injectFooter(content, name, manifest);
+      content = injectOgTags(content, name, baseDomain);
+      content = injectFooter(content, name, manifest, baseDomain);
 
       return new Response(content, {
         headers: { 'Content-Type': 'text/html' },
@@ -140,6 +600,77 @@ export default {
 };
 
 // ============ Helpers ============
+
+// Punycode decoder for internationalized domain names (IDN)
+// Decodes "xn--kpry57d" back to "梦"
+function decodePunycode(input) {
+  if (!input.startsWith('xn--')) return input;
+
+  const base = 36;
+  const tMin = 1;
+  const tMax = 26;
+  const skew = 38;
+  const damp = 700;
+  const initialBias = 72;
+  const initialN = 128;
+
+  function adapt(delta, numPoints, firstTime) {
+    delta = firstTime ? Math.floor(delta / damp) : Math.floor(delta / 2);
+    delta += Math.floor(delta / numPoints);
+    let k = 0;
+    while (delta > ((base - tMin) * tMax) / 2) {
+      delta = Math.floor(delta / (base - tMin));
+      k += base;
+    }
+    return k + Math.floor(((base - tMin + 1) * delta) / (delta + skew));
+  }
+
+  function decodeDigit(cp) {
+    if (cp - 48 < 10) return cp - 22;
+    if (cp - 65 < 26) return cp - 65;
+    if (cp - 97 < 26) return cp - 97;
+    return base;
+  }
+
+  const encoded = input.slice(4);
+  const output = [];
+  let i = 0;
+  let n = initialN;
+  let bias = initialBias;
+
+  const delimPos = encoded.lastIndexOf('-');
+  const basicPart = delimPos > 0 ? encoded.slice(0, delimPos) : '';
+  for (const char of basicPart) {
+    output.push(char.charCodeAt(0));
+  }
+
+  let index = delimPos > 0 ? delimPos + 1 : 0;
+
+  while (index < encoded.length) {
+    const oldi = i;
+    let w = 1;
+    let k = base;
+
+    while (true) {
+      if (index >= encoded.length) break;
+      const digit = decodeDigit(encoded.charCodeAt(index++));
+      if (digit >= base) break;
+      i += digit * w;
+      const t = k <= bias ? tMin : k >= bias + tMax ? tMax : k - bias;
+      if (digit < t) break;
+      w *= base - t;
+      k += base;
+    }
+
+    const out = output.length + 1;
+    bias = adapt(i - oldi, out, oldi === 0);
+    n += Math.floor(i / out);
+    i %= out;
+    output.splice(i++, 0, n);
+  }
+
+  return String.fromCodePoint(...output);
+}
 
 async function sha256(message) {
   const msgBuffer = new TextEncoder().encode(message);
@@ -258,6 +789,10 @@ async function fetchTxContentRaw(txHash) {
   const baseResult = await fetchFromRPCRaw(BASE_RPC, txHash);
   if (baseResult) return baseResult;
 
+  // Try Sepolia RPC (testnet - free inscriptions)
+  const sepoliaResult = await fetchFromRPCRaw(SEPOLIA_RPC, txHash);
+  if (sepoliaResult) return sepoliaResult;
+
   return null;
 }
 
@@ -312,21 +847,33 @@ async function findManifestCached(env, owner, name) {
   if (env.CACHE) {
     try {
       const cached = await env.CACHE.get(cacheKey, 'json');
-      if (cached !== null) {
-        return cached; // Could be null (no manifest) or the manifest object
+      if (cached !== null && cached._manifestTx) {
+        // Quick check: is there a newer manifest?
+        const newestTx = await getNewestManifestTx(owner, name);
+        if (newestTx && newestTx !== cached._manifestTx) {
+          // Newer manifest exists - invalidate cache
+          await env.CACHE.delete(cacheKey);
+        } else {
+          // Cache is current
+          const { _manifestTx, ...manifest } = cached;
+          return Object.keys(manifest).length > 0 ? manifest : null;
+        }
+      } else if (cached !== null) {
+        return cached; // Legacy cache format
       }
     } catch (e) {
       console.error('Cache read error:', e);
     }
   }
 
-  // Cache miss - fetch from API
-  const manifest = await findManifest(owner, name);
+  // Cache miss or invalidated - fetch from API
+  const { manifest, manifestTx } = await findManifest(owner, name);
 
-  // Cache the result (even if null, to avoid repeated lookups)
+  // Cache the result with manifest tx for version checking
   if (env.CACHE) {
     try {
-      await env.CACHE.put(cacheKey, JSON.stringify(manifest), {
+      const toCache = manifest ? { ...manifest, _manifestTx: manifestTx } : { _manifestTx: manifestTx };
+      await env.CACHE.put(cacheKey, JSON.stringify(toCache), {
         expirationTtl: MANIFEST_CACHE_TTL,
       });
     } catch (e) {
@@ -337,6 +884,32 @@ async function findManifestCached(env, owner, name) {
   return manifest;
 }
 
+// Quick lookup to get newest manifest tx hash (no content fetch)
+async function getNewestManifestTx(owner, name) {
+  try {
+    const res = await fetch(
+      `${ETHSCRIPTIONS_API}/ethscriptions?current_owner=${owner}&mime_subtype=json&per_page=20`
+    );
+    const data = await res.json();
+    if (!data.result?.length) return null;
+
+    for (const eth of data.result) {
+      try {
+        const content = await fetchEthscriptionContent(eth.transaction_hash);
+        if (content) {
+          const parsed = JSON.parse(content);
+          if (parsed.chainhost && parsed.chainhost[name]) {
+            return eth.transaction_hash;
+          }
+        }
+      } catch (e) {}
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function findManifest(owner, name) {
   try {
     const res = await fetch(
@@ -344,7 +917,7 @@ async function findManifest(owner, name) {
     );
     const data = await res.json();
 
-    if (!data.result?.length) return null;
+    if (!data.result?.length) return { manifest: null, manifestTx: null };
 
     // Look for name-specific manifests only (new format)
     // Old format without name key is no longer supported
@@ -355,7 +928,7 @@ async function findManifest(owner, name) {
           const parsed = JSON.parse(content);
           // Format: {"chainhost": {"sitename": {"home": "0x..."}}}
           if (parsed.chainhost && parsed.chainhost[name]) {
-            return parsed.chainhost[name];
+            return { manifest: parsed.chainhost[name], manifestTx: eth.transaction_hash };
           }
         }
       } catch (e) {
@@ -363,10 +936,10 @@ async function findManifest(owner, name) {
       }
     }
 
-    return null;
+    return { manifest: null, manifestTx: null };
   } catch (e) {
     console.error('Manifest lookup error:', e);
-    return null;
+    return { manifest: null, manifestTx: null };
   }
 }
 
@@ -398,6 +971,10 @@ async function fetchEthscriptionContent(txHash) {
   // Try Base RPC
   const baseContent = await fetchFromRPC(BASE_RPC, txHash);
   if (baseContent) return baseContent;
+
+  // Try Sepolia RPC (testnet - free inscriptions)
+  const sepoliaContent = await fetchFromRPC(SEPOLIA_RPC, txHash);
+  if (sepoliaContent) return sepoliaContent;
 
   return null;
 }
@@ -498,7 +1075,7 @@ async function getInscriptionHistory(owner, name) {
   }
 }
 
-function imagePageHtml(name, dataUri, txHash, pixelArt, manifest) {
+function imagePageHtml(name, dataUri, txHash, pixelArt, manifest, baseDomain = 'chainhost.online') {
   const hasAbout = !!manifest.about;
 
   return `<!DOCTYPE html>
@@ -506,7 +1083,7 @@ function imagePageHtml(name, dataUri, txHash, pixelArt, manifest) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta property="og:title" content="${name}">
-<meta property="og:url" content="https://${name}.chainhost.online">
+<meta property="og:url" content="https://${name}.${baseDomain}">
 <meta property="og:site_name" content="ChainHost">
 <meta property="og:type" content="website">
 <title>${name}</title>
@@ -536,10 +1113,11 @@ img{
 </body></html>`;
 }
 
-function injectOgTags(html, name) {
+function injectOgTags(html, name, baseDomain = 'chainhost.online') {
   const ogTags = `
+<link rel="icon" href="${FAVICON}">
 <meta property="og:title" content="${name}">
-<meta property="og:url" content="https://${name}.chainhost.online">
+<meta property="og:url" content="https://${name}.${baseDomain}">
 <meta property="og:site_name" content="ChainHost">
 <meta property="og:type" content="website">
 `;
@@ -553,7 +1131,7 @@ function injectOgTags(html, name) {
   return html;
 }
 
-function injectFooter(html, name, manifest) {
+function injectFooter(html, name, manifest, baseDomain = 'chainhost.online') {
   const hasAbout = !!manifest.about;
 
   const footer = `
@@ -562,7 +1140,7 @@ function injectFooter(html, name, manifest) {
   <a href="/previous" style="color:#888;text-decoration:none;transition:color 0.2s" onmouseover="this.style.color='#C3FF00'" onmouseout="this.style.color='#888'">Previous</a>
   <a href="/recovery" style="color:#888;text-decoration:none;transition:color 0.2s" onmouseover="this.style.color='#C3FF00'" onmouseout="this.style.color='#888'">Recovery</a>
   <span style="color:#333">|</span>
-  <a href="https://chainhost.online" target="_blank" style="color:#555;text-decoration:none;font-size:11px">chainhost</a>
+  <a href="https://${baseDomain}" target="_blank" style="color:#555;text-decoration:none;font-size:11px">${baseDomain.split('.')[0]}</a>
 </nav>
 </body>`;
 
@@ -574,7 +1152,7 @@ function injectFooter(html, name, manifest) {
 
 // ============ Pages ============
 
-function notClaimedPage(name) {
+function notClaimedPage(name, baseDomain = 'chainhost.online') {
   return `<!DOCTYPE html>
 <html><head>
 <meta charset="UTF-8">
@@ -602,7 +1180,7 @@ h1{font-size:2.5rem;color:#C3FF00;margin-bottom:0.5rem}
 </head><body>
 <div class="c">
 <h1>Available!</h1>
-<div class="name">${name}.chainhost.online</div>
+<div class="name">${name}.${baseDomain}</div>
 <p class="desc">This name isn't claimed yet. Inscribe it on Ethereum and host your site forever—no servers, no renewals, just permanent on-chain hosting.</p>
 <a href="https://chainhost.online/register" class="btn">Claim ${name} for Free</a>
 <div class="how">
@@ -610,14 +1188,14 @@ h1{font-size:2.5rem;color:#C3FF00;margin-bottom:0.5rem}
 <div class="step"><span class="num">1.</span><span>Connect wallet & inscribe <code style="background:#222;padding:2px 6px;border-radius:4px;color:#C3FF00">data:,${name}</code></span></div>
 <div class="step"><span class="num">2.</span><span>Upload your HTML (Ethereum or Base)</span></div>
 <div class="step"><span class="num">3.</span><span>Create manifest linking routes to content</span></div>
-<div class="step"><span class="num">4.</span><span>Live forever at ${name}.chainhost.online</span></div>
+<div class="step"><span class="num">4.</span><span>Live forever at ${name}.${baseDomain}</span></div>
 </div>
 <p class="footer">Powered by <a href="https://ethscriptions.com" target="_blank">Ethscriptions</a> · <a href="https://github.com/jefdiesel/chainhost" target="_blank">GitHub</a></p>
 </div>
 </body></html>`;
 }
 
-function noManifestPage(name, owner) {
+function noManifestPage(name, owner, baseDomain = 'chainhost.online') {
   const short = owner.slice(0, 6) + '...' + owner.slice(-4);
   return `<!DOCTYPE html>
 <html><head>
@@ -648,7 +1226,7 @@ h1{font-size:2.5rem;margin-bottom:0.5rem}
 <a href="https://chainhost.online/upload?name=${name}" class="btn">Upload Site</a>
 <div class="info">
 <h3>Next Steps</h3>
-<p>Upload your HTML files (home page, about page, etc.) and inscribe them on Ethereum or Base. Then create a manifest to link your routes. Your site will be permanently accessible at ${name}.chainhost.online</p>
+<p>Upload your HTML files (home page, about page, etc.) and inscribe them on Ethereum or Base. Then create a manifest to link your routes. Your site will be permanently accessible at ${name}.${baseDomain}</p>
 </div>
 <p class="footer"><a href="https://chainhost.online" target="_blank">chainhost.online</a> · <a href="https://github.com/jefdiesel/chainhost" target="_blank">GitHub</a></p>
 </div>
@@ -726,7 +1304,7 @@ p{color:#888}
 </body></html>`;
 }
 
-function previousPage(name, owner, history) {
+function previousPage(name, owner, history, baseDomain = 'chainhost.online') {
   const short = owner.slice(0, 6) + '...' + owner.slice(-4);
 
   const historyHtml = history.length > 0
@@ -782,7 +1360,7 @@ h1{font-size:2rem;margin-bottom:0.5rem}
 </body></html>`;
 }
 
-function recoveryPage(name, owner) {
+function recoveryPage(name, owner, baseDomain = 'chainhost.online') {
   const short = owner.slice(0, 6) + '...' + owner.slice(-4);
 
   return `<!DOCTYPE html>

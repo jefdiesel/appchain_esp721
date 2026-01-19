@@ -1,0 +1,30 @@
+# Email Receiver Worker
+# Handles inbound emails via Cloudflare Email Routing
+#
+# Setup:
+# 1. Create D1 database: npx wrangler d1 create chainhost-email
+# 2. Create R2 bucket: npx wrangler r2 bucket create chainhost-email
+# 3. Run migrations: npx wrangler d1 execute chainhost-email --file=../sql/email-schema.sql
+# 4. Deploy: npx wrangler deploy -c wrangler-email-receiver.toml
+# 5. Configure Email Routing in Cloudflare dashboard:
+#    - Go to Email > Email Routing > Routing Rules
+#    - Add catch-all rule: *@chainhost.email → Worker: chainhost-email-receiver
+
+name = "chainhost-email-receiver"
+main = "email-receiver.js"
+compatibility_date = "2024-01-01"
+account_id = "1e154bc12873eef5423dffecfdeae043"
+
+# D1 database for email metadata (shared with subdomain router)
+[[d1_databases]]
+binding = "DB"
+database_name = "chainhost-email"
+database_id = "feba224b-bf23-44ce-b32a-8b2325f0a5d1"
+
+# R2 bucket for email storage (shared with subdomain router)
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "chainhost-email"
+
+# Note: Email routing is configured in the Cloudflare dashboard, not here
+# The worker will receive emails via the `email` event handler
