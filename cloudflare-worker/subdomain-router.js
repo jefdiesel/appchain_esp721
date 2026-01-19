@@ -597,6 +597,18 @@ ${urls}
       });
     }
   },
+
+  // Scheduled trigger to keep Supabase active
+  async scheduled(event, env, ctx) {
+    try {
+      // Ping the Vercel keepalive endpoint
+      const response = await fetch('https://chainhost.online/api/cron/keepalive');
+      const data = await response.json();
+      console.log('Supabase keepalive:', data);
+    } catch (error) {
+      console.error('Keepalive failed:', error);
+    }
+  },
 };
 
 // ============ Helpers ============

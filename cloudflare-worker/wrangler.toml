@@ -45,3 +45,7 @@ bucket_name = "chainhost-email"
 
 [vars]
 CACHE_CLEAR_KEY = "ch0st-cl34r-2024"
+
+# Scheduled trigger to keep Supabase active (runs every 12 hours)
+[triggers]
+crons = ["0 */12 * * *"]
