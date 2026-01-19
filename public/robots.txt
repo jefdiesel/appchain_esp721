@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://chainhost.online/sitemap.xml

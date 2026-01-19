@@ -1269,7 +1269,8 @@ function renderMailAbout(name, baseDomain) {
           <h3>Plus Addressing</h3>
           <p>Use ${name}+shopping@chainhost.online to filter and organize incoming mail automatically.</p>
         </div>
-        <div class="feature">
+        <div class="feature" style="position:relative">
+          <div style="position:absolute;top:12px;right:12px;font-size:10px;text-transform:uppercase;letter-spacing:1px;background:#222;color:#666;padding:4px 8px;border-radius:4px">Coming Soon</div>
           <div class="icon">🔗</div>
           <h3>API Access</h3>
           <p>Generate API keys to send emails programmatically from your applications.</p>

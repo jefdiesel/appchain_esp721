@@ -11,13 +11,14 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [txHash, setTxHash] = useState("");
 
-  // Validate name (lowercase, alphanumeric + hyphen only)
+  // Validate name (lowercase letters, numbers, hyphens, Chinese/CJK characters)
   const validateName = (n: string) => {
-    return /^[a-z0-9-]+$/.test(n) && n.length >= 1 && n.length <= 32;
+    // Allow: a-z, 0-9, hyphen, CJK Unified Ideographs (Chinese/Japanese/Korean)
+    return /^[a-z0-9\u4e00-\u9fff-]+$/.test(n) && n.length >= 1 && n.length <= 32;
   };
 
   const nameError = name && !validateName(name)
-    ? "Lowercase letters, numbers, and hyphens only."
+    ? "Lowercase letters, numbers, hyphens, and Chinese characters only."
     : "";
 
   // Check availability via Ethscriptions API (no wallet needed)
@@ -152,7 +153,11 @@ export default function RegisterPage() {
           <ul className="space-y-2 text-sm text-gray-400">
             <li className="flex items-center gap-2">
               <span className="text-[#C3FF00]">✓</span>
-              Lowercase letters, numbers, hyphens only
+              Lowercase letters, numbers, hyphens
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-[#C3FF00]">✓</span>
+              Chinese characters (中文) supported
             </li>
             <li className="flex items-center gap-2">
               <span className="text-red-400">✗</span>

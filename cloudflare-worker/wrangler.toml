@@ -9,7 +9,39 @@ preview_urls = false
 pattern = "*.chainhost.online/*"
 zone_name = "chainhost.online"
 
+[[routes]]
+pattern = "*.chost.app/*"
+zone_name = "chost.app"
+
+[[routes]]
+pattern = "chost.app/*"
+zone_name = "chost.app"
+
+[[routes]]
+pattern = "*.immutable.church/*"
+zone_name = "immutable.church"
+
+[[routes]]
+pattern = "immutable.church/*"
+zone_name = "immutable.church"
+
 # KV namespace for caching manifests
 [[kv_namespaces]]
 binding = "CACHE"
 id = "cf1246ee297644ec98a2e0cff569d4cb"
+
+# D1 database for email metadata
+# Create with: npx wrangler d1 create chainhost-email
+[[d1_databases]]
+binding = "DB"
+database_name = "chainhost-email"
+database_id = "feba224b-bf23-44ce-b32a-8b2325f0a5d1"
+
+# R2 bucket for email storage
+# Create with: npx wrangler r2 bucket create chainhost-email
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "chainhost-email"
+
+[vars]
+CACHE_CLEAR_KEY = "ch0st-cl34r-2024"

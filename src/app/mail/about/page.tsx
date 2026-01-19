@@ -2,7 +2,7 @@ import { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: 'Chainhost Mail - End-to-End Encrypted Email',
-  description: 'Free encrypted email for every chainhost name. Wallet authentication, RSA-AES encryption, plus addressing, and API access.',
+  description: 'Free encrypted email for every ethscription name. Wallet authentication, RSA-AES encryption, plus addressing, and API access.',
 }
 
 export default function MailAboutPage() {
@@ -54,7 +54,8 @@ export default function MailAboutPage() {
                 Use name+shopping@chainhost.online to filter and organize incoming mail automatically.
               </p>
             </div>
-            <div className="bg-[#111] border border-[#222] rounded-xl p-6">
+            <div className="bg-[#111] border border-[#222] rounded-xl p-6 relative">
+              <div className="absolute top-3 right-3 text-[10px] uppercase tracking-wider bg-[#222] text-gray-400 px-2 py-1 rounded">Coming Soon</div>
               <div className="text-2xl mb-3">🔗</div>
               <h3 className="text-white font-semibold mb-2">API Access</h3>
               <p className="text-gray-500 text-sm">
