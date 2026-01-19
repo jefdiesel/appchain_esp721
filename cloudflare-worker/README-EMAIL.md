@@ -126,6 +126,92 @@ Reading Email:
 - **Decryption is client-side only** - Private key never leaves browser unencrypted
 - **Wallet signature = access** - No passwords, no recovery if wallet lost
 
+### Key Storage Locations
+
+| Key | Location | Admin Can See? | Admin Can Use? |
+|-----|----------|----------------|----------------|
+| RSA Public Key | D1 `email_addresses.encryption_public_key` | Yes | Only encrypts, can't decrypt |
+| Encrypted RSA Private Key | R2 `encryption/{address_id}/private_key.enc` | Yes | No - needs wallet signature |
+| AES Key (protects private key) | **Nowhere** | No | Derived on-demand from wallet |
+| Decrypted RSA Private Key | Browser `sessionStorage` | No | Only in user's browser |
+
+**What an admin with full database access sees:**
+```
+D1: encryption_public_key = {"kty":"RSA","n":"xK7d2..."...}  ← Can only encrypt
+R2: private_key.enc = [encrypted binary blob]                ← Useless without wallet
+```
+
+**To decrypt emails, an attacker needs:**
+1. ✓ Encrypted private key (stored in R2)
+2. ✗ User's wallet signature of the exact message (never stored)
+
+The AES key that decrypts the private key is derived from: `SHA-256(wallet_signature("Chainhost Email Encryption Key - DO NOT share this signature"))`
+
+This signature can only be produced by the wallet that owns the private key. It's never transmitted to or stored on the server.
+
+### Key Generation
+
+| Component | Generation Method | Deterministic? |
+|-----------|-------------------|----------------|
+| AES key (protects private key) | SHA-256 of wallet signature | Yes - same wallet = same key |
+| RSA keypair (encrypts emails) | `crypto.subtle.generateKey()` | No - random each time |
+
+The RSA keypair is randomly generated, NOT derived from the wallet. This means:
+- Fresh keys on every encryption setup
+- No way to recover keys even with the same wallet
+- Maximum forward secrecy
+
+### Ownership Transfers
+
+When a chainhost name is transferred to a new wallet:
+
+```
+1. User A owns "bob" → creates keypair A, emails encrypted with key A
+2. User A transfers "bob" to User B
+3. User B logs in → system detects owner_address changed
+4. Old encryption keys are deleted
+5. User B creates fresh keypair B
+6. Old emails: encrypted with key A (unreadable by B)
+7. New emails: encrypted with key B
+```
+
+**What happens to old emails after transfer:**
+- Stay in the inbox (metadata visible: sender, subject, date)
+- Body encrypted with previous owner's key
+- Cannot be decrypted by new owner
+- Cannot be decrypted by previous owner (keys deleted)
+- Effectively "sealed" forever
+
+**If the name transfers back to original owner:**
+- New random keypair is generated (not the original)
+- Old emails from first ownership period remain unreadable
+- This is intentional - prevents key recovery attacks
+
+### Threat Analysis
+
+| Threat | Protected? | How |
+|--------|------------|-----|
+| Admin reads emails | ✅ Yes | Bodies encrypted with user's RSA key |
+| Database breach | ✅ Yes | Only encrypted blobs, no decryption keys |
+| R2 bucket breach | ✅ Yes | Private key encrypted with wallet-derived AES |
+| Man-in-the-middle | ✅ Yes | HTTPS + decryption requires wallet signature |
+| Stolen laptop (logged in) | ⚠️ Partial | sessionStorage cleared on browser close |
+| Compromised wallet | ❌ No | Wallet = identity, game over |
+| User loses wallet | ❌ No | No recovery possible by design |
+
+### What's NOT Encrypted (Searchable Metadata)
+
+These remain in plaintext for server-side search:
+- Sender address (`from_address`)
+- Sender name (`from_name`)
+- Recipient addresses (`to_addresses`, `cc_addresses`)
+- Subject line (`subject`)
+- Snippet/preview (`snippet` - first 200 chars of body)
+- Timestamps (`received_at`, `sent_at`)
+- Thread IDs, read status, folder
+
+If metadata privacy is required, a future enhancement could encrypt subjects client-side.
+
 ## Deployment
 
 ### Prerequisites
