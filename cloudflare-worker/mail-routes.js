@@ -581,14 +581,40 @@ async function handleAuthVerify(request, env, address, owner) {
 
   console.log('Auth verify - Session stored, expires:', expiresAt);
 
+  // Check if ownership has changed (name was transferred)
+  const ownerChanged = address.owner_address?.toLowerCase() !== owner.toLowerCase();
+  let needsEncryptionSetup = !address.encryption_public_key;
+
+  if (ownerChanged) {
+    console.log('Auth verify - Ownership changed, resetting encryption');
+    // Update owner and clear old encryption keys
+    await env.DB.prepare(`
+      UPDATE email_addresses
+      SET owner_address = ?, encryption_public_key = NULL, updated_at = ?
+      WHERE id = ?
+    `).bind(owner.toLowerCase(), Date.now(), address.id).run();
+
+    // Delete old encrypted private key from R2
+    try {
+      await env.R2.delete(`encryption/${address.id}/private_key.enc`);
+    } catch (e) {
+      console.log('No old private key to delete');
+    }
+
+    needsEncryptionSetup = true;
+
+    // Log the ownership change
+    await logAudit(env.DB, address.id, 'ownership.changed', {
+      old_owner: address.owner_address,
+      new_owner: owner.toLowerCase()
+    });
+  }
+
   // Log the login
   await logAudit(env.DB, address.id, 'auth.login', {
     wallet: walletAddress,
     method: 'wallet_signature'
   });
-
-  // Check if encryption is set up
-  const hasEncryption = !!address.encryption_public_key;
 
   // Set cookie - note: not setting domain so it defaults to the current subdomain
   const cookie = `${SESSION_COOKIE_NAME}=${sessionToken}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${Math.floor(SESSION_DURATION / 1000)}`;
@@ -596,7 +622,8 @@ async function handleAuthVerify(request, env, address, owner) {
 
   return new Response(JSON.stringify({
     success: true,
-    needsEncryptionSetup: !hasEncryption
+    needsEncryptionSetup,
+    ownershipChanged: ownerChanged
   }), {
     headers: {
       'Content-Type': 'application/json',
@@ -973,6 +1000,12 @@ function renderLogin(name, owner, baseDomain) {
         console.log('Current cookies after verify:', document.cookie);
 
         if (result.success) {
+          // Check if ownership changed (name was transferred)
+          if (result.ownershipChanged) {
+            showStatus('Ownership transferred - setting up new encryption...', 'info');
+            btn.textContent = 'New owner setup...';
+          }
+
           // Check if encryption setup is needed
           if (result.needsEncryptionSetup) {
             showStatus('Setting up email encryption...', 'info');
