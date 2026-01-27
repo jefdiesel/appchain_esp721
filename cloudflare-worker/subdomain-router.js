@@ -370,6 +370,13 @@ const IMMUTABLE_LANDING = `<!DOCTYPE html>
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
+    // Redirect HTTP to HTTPS
+    if (url.protocol === 'http:') {
+      url.protocol = 'https:';
+      return Response.redirect(url.toString(), 301);
+    }
+
     const hostname = url.hostname;
     const path = url.pathname;
 

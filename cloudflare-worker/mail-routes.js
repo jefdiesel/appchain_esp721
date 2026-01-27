@@ -246,16 +246,38 @@ async function apiGetEmail(env, address, emailId, headers) {
   // Fetch body from R2
   let htmlBody = null;
   let textBody = null;
+  let htmlBodyEncrypted = null;
+  let textBodyEncrypted = null;
 
-  try {
-    const htmlObj = await env.R2.get(`${email.r2_key}.html`);
-    if (htmlObj) htmlBody = await htmlObj.text();
-  } catch (e) {}
+  if (email.is_encrypted) {
+    // Fetch encrypted bodies and return as base64 for client-side decryption
+    try {
+      const htmlObj = await env.R2.get(`${email.r2_key}.html.enc`);
+      if (htmlObj) {
+        const bytes = new Uint8Array(await htmlObj.arrayBuffer());
+        htmlBodyEncrypted = btoa(String.fromCharCode(...bytes));
+      }
+    } catch (e) {}
 
-  try {
-    const textObj = await env.R2.get(`${email.r2_key}.txt`);
-    if (textObj) textBody = await textObj.text();
-  } catch (e) {}
+    try {
+      const textObj = await env.R2.get(`${email.r2_key}.txt.enc`);
+      if (textObj) {
+        const bytes = new Uint8Array(await textObj.arrayBuffer());
+        textBodyEncrypted = btoa(String.fromCharCode(...bytes));
+      }
+    } catch (e) {}
+  } else {
+    // Fetch unencrypted bodies
+    try {
+      const htmlObj = await env.R2.get(`${email.r2_key}.html`);
+      if (htmlObj) htmlBody = await htmlObj.text();
+    } catch (e) {}
+
+    try {
+      const textObj = await env.R2.get(`${email.r2_key}.txt`);
+      if (textObj) textBody = await textObj.text();
+    } catch (e) {}
+  }
 
   // Mark as read
   if (!email.is_read) {
@@ -268,6 +290,8 @@ async function apiGetEmail(env, address, emailId, headers) {
     ...email,
     html_body: htmlBody,
     text_body: textBody,
+    html_body_encrypted: htmlBodyEncrypted,
+    text_body_encrypted: textBodyEncrypted,
   }), { headers });
 }
 
@@ -338,13 +362,45 @@ async function apiSendEmail(request, env, address, headers) {
   const emailId = crypto.randomUUID();
   const r2Key = `${address.id}/${emailId}`;
 
-  if (html) await env.R2.put(`${r2Key}.html`, html);
-  if (text) await env.R2.put(`${r2Key}.txt`, text);
+  // Check if encryption is enabled for this address
+  let isEncrypted = false;
+  if (address.encryption_public_key) {
+    try {
+      const jwk = JSON.parse(address.encryption_public_key);
+      const publicKey = await crypto.subtle.importKey(
+        'jwk',
+        jwk,
+        { name: 'RSA-OAEP', hash: 'SHA-256' },
+        false,
+        ['encrypt']
+      );
+
+      // Encrypt and store with .enc suffix
+      if (html) {
+        const encryptedHtml = await encryptWithPublicKey(publicKey, new TextEncoder().encode(html));
+        await env.R2.put(`${r2Key}.html.enc`, encryptedHtml);
+      }
+      if (text) {
+        const encryptedText = await encryptWithPublicKey(publicKey, new TextEncoder().encode(text));
+        await env.R2.put(`${r2Key}.txt.enc`, encryptedText);
+      }
+      isEncrypted = true;
+    } catch (e) {
+      console.error('Failed to encrypt sent email, storing unencrypted:', e);
+      // Fall back to unencrypted storage
+      if (html) await env.R2.put(`${r2Key}.html`, html);
+      if (text) await env.R2.put(`${r2Key}.txt`, text);
+    }
+  } else {
+    // No encryption key, store unencrypted
+    if (html) await env.R2.put(`${r2Key}.html`, html);
+    if (text) await env.R2.put(`${r2Key}.txt`, text);
+  }
 
   await env.DB.prepare(`
     INSERT INTO emails (id, address_id, from_address, from_name, to_addresses, cc_addresses,
-      subject, snippet, r2_key, folder, sent_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'sent', ?)
+      subject, snippet, r2_key, is_encrypted, folder, sent_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'sent', ?)
   `).bind(
     emailId,
     address.id,
@@ -355,6 +411,7 @@ async function apiSendEmail(request, env, address, headers) {
     subject,
     (text || '').slice(0, 200),
     r2Key,
+    isEncrypted ? 1 : 0,
     Date.now()
   ).run();
 
@@ -1584,18 +1641,44 @@ async function renderEmail(env, address, name, baseDomain, emailId) {
 
   // Fetch body from R2
   let body = '';
-  try {
-    const htmlObj = await env.R2.get(`${email.r2_key}.html`);
-    if (htmlObj) {
-      body = sanitizeHtml(await htmlObj.text());
-    } else {
-      const textObj = await env.R2.get(`${email.r2_key}.txt`);
-      if (textObj) {
-        body = `<pre style="white-space:pre-wrap;font-family:inherit">${escapeHtml(await textObj.text())}</pre>`;
+  let encryptedHtmlB64 = null;
+  let encryptedTextB64 = null;
+
+  if (email.is_encrypted) {
+    // Fetch encrypted bodies for client-side decryption
+    try {
+      const htmlObj = await env.R2.get(`${email.r2_key}.html.enc`);
+      if (htmlObj) {
+        const bytes = new Uint8Array(await htmlObj.arrayBuffer());
+        encryptedHtmlB64 = btoa(String.fromCharCode(...bytes));
       }
+    } catch (e) {}
+
+    if (!encryptedHtmlB64) {
+      try {
+        const textObj = await env.R2.get(`${email.r2_key}.txt.enc`);
+        if (textObj) {
+          const bytes = new Uint8Array(await textObj.arrayBuffer());
+          encryptedTextB64 = btoa(String.fromCharCode(...bytes));
+        }
+      } catch (e) {}
     }
-  } catch (e) {
-    body = '<p>Could not load email body</p>';
+
+    body = '<div id="encrypted-content"><p style="color:#888">Decrypting...</p></div>';
+  } else {
+    try {
+      const htmlObj = await env.R2.get(`${email.r2_key}.html`);
+      if (htmlObj) {
+        body = sanitizeHtml(await htmlObj.text());
+      } else {
+        const textObj = await env.R2.get(`${email.r2_key}.txt`);
+        if (textObj) {
+          body = `<pre style="white-space:pre-wrap;font-family:inherit">${escapeHtml(await textObj.text())}</pre>`;
+        }
+      }
+    } catch (e) {
+      body = '<p>Could not load email body</p>';
+    }
   }
 
   // Mark as read
@@ -1604,6 +1687,86 @@ async function renderEmail(env, address, name, baseDomain, emailId) {
   }
 
   const fromDisplay = email.from_name ? `${email.from_name} <${email.from_address}>` : email.from_address;
+
+  // Build decryption script if email is encrypted
+  const decryptionScript = email.is_encrypted ? `
+    <script>
+      const encryptedHtmlB64 = ${encryptedHtmlB64 ? `"${encryptedHtmlB64}"` : 'null'};
+      const encryptedTextB64 = ${encryptedTextB64 ? `"${encryptedTextB64}"` : 'null'};
+
+      async function decryptContent() {
+        const container = document.getElementById('encrypted-content');
+        const privateKeyJwk = sessionStorage.getItem('chainhost_private_key');
+
+        if (!privateKeyJwk) {
+          container.innerHTML = '<p style="color:#f88">Unable to decrypt: No encryption key found. Please log out and log back in.</p>';
+          return;
+        }
+
+        try {
+          const privateKey = await crypto.subtle.importKey(
+            'jwk',
+            JSON.parse(privateKeyJwk),
+            { name: 'RSA-OAEP', hash: 'SHA-256' },
+            false,
+            ['decrypt']
+          );
+
+          const encryptedB64 = encryptedHtmlB64 || encryptedTextB64;
+          if (!encryptedB64) {
+            container.innerHTML = '<p style="color:#f88">No encrypted content found</p>';
+            return;
+          }
+
+          // Decode base64
+          const encryptedBytes = Uint8Array.from(atob(encryptedB64), c => c.charCodeAt(0));
+
+          // Extract components: encryptedAesKey (256 bytes) + iv (12 bytes) + encryptedData
+          const encryptedAesKey = encryptedBytes.slice(0, 256);
+          const iv = encryptedBytes.slice(256, 268);
+          const encryptedData = encryptedBytes.slice(268);
+
+          // Decrypt AES key with RSA
+          const aesKeyRaw = await crypto.subtle.decrypt(
+            { name: 'RSA-OAEP' },
+            privateKey,
+            encryptedAesKey
+          );
+
+          // Import AES key
+          const aesKey = await crypto.subtle.importKey(
+            'raw',
+            aesKeyRaw,
+            { name: 'AES-GCM' },
+            false,
+            ['decrypt']
+          );
+
+          // Decrypt content
+          const decryptedData = await crypto.subtle.decrypt(
+            { name: 'AES-GCM', iv },
+            aesKey,
+            encryptedData
+          );
+
+          const decryptedText = new TextDecoder().decode(decryptedData);
+
+          if (encryptedHtmlB64) {
+            container.innerHTML = decryptedText;
+          } else {
+            container.innerHTML = '<pre style="white-space:pre-wrap;font-family:inherit">' +
+              decryptedText.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') +
+              '</pre>';
+          }
+        } catch (e) {
+          console.error('Decryption error:', e);
+          container.innerHTML = '<p style="color:#f88">Failed to decrypt email: ' + e.message + '</p>';
+        }
+      }
+
+      decryptContent();
+    </script>
+  ` : '';
 
   return new Response(mailPageTemplate(name, baseDomain, email.subject || '(no subject)', `
     <div class="email-view">
@@ -1622,6 +1785,7 @@ async function renderEmail(env, address, name, baseDomain, emailId) {
         <div class="email-view-date">
           <strong>Date:</strong> ${new Date(email.received_at || email.sent_at).toLocaleString()}
         </div>
+        ${email.is_encrypted ? '<div class="email-encrypted-badge" style="margin-top:8px;color:#4a4;font-size:12px;">🔒 End-to-end encrypted</div>' : ''}
       </div>
       <div class="email-view-body">
         ${body}
@@ -1634,6 +1798,7 @@ async function renderEmail(env, address, name, baseDomain, emailId) {
         if (res.ok) window.location.href = '/mail';
       }
     </script>
+    ${decryptionScript}
   `), { headers: { 'Content-Type': 'text/html' } });
 }
 
@@ -1787,6 +1952,53 @@ async function sha256(message) {
   const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Encrypt data using hybrid encryption (RSA-OAEP + AES-GCM)
+ * RSA encrypts an AES key, AES encrypts the actual data
+ * Returns: encryptedAesKey (256 bytes) + iv (12 bytes) + encryptedData
+ */
+async function encryptWithPublicKey(publicKey, data) {
+  // Generate random AES key
+  const aesKey = await crypto.subtle.generateKey(
+    { name: 'AES-GCM', length: 256 },
+    true,
+    ['encrypt']
+  );
+
+  // Export AES key for RSA encryption
+  const rawAesKey = await crypto.subtle.exportKey('raw', aesKey);
+
+  // Encrypt AES key with RSA public key
+  const encryptedAesKey = await crypto.subtle.encrypt(
+    { name: 'RSA-OAEP' },
+    publicKey,
+    rawAesKey
+  );
+
+  // Generate IV for AES-GCM
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+
+  // Ensure data is ArrayBuffer
+  const dataBuffer = data instanceof ArrayBuffer ? data : data.buffer || data;
+
+  // Encrypt data with AES-GCM
+  const encryptedData = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    aesKey,
+    dataBuffer
+  );
+
+  // Combine: encryptedAesKey (256 bytes for 2048-bit RSA) + iv (12 bytes) + encryptedData
+  const result = new Uint8Array(
+    encryptedAesKey.byteLength + iv.byteLength + encryptedData.byteLength
+  );
+  result.set(new Uint8Array(encryptedAesKey), 0);
+  result.set(iv, encryptedAesKey.byteLength);
+  result.set(new Uint8Array(encryptedData), encryptedAesKey.byteLength + iv.byteLength);
+
+  return result.buffer;
 }
 
 function escapeHtml(str) {
