@@ -483,12 +483,13 @@ ${urls}
       try {
         const obj = await env.R2.get(`screenshots/${ogName}/home.png`);
         if (obj) {
-          return new Response(obj.body, {
-            headers: {
-              'Content-Type': 'image/png',
-              'Cache-Control': 'public, max-age=3600',
-            },
-          });
+          const headers = {
+            'Content-Type': 'image/png',
+            'Cache-Control': 'public, max-age=3600',
+            'Access-Control-Allow-Origin': '*',
+          };
+          if (obj.size) headers['Content-Length'] = String(obj.size);
+          return new Response(obj.body, { headers });
         }
       } catch (e) {
         // R2 fetch failed, fall through to default
