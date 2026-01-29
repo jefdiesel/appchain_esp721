@@ -1491,7 +1491,11 @@ function injectOgTags(html, name, baseDomain = 'chainhost.online') {
   } else if (html.includes('<head>')) {
     return html.replace('<head>', '<head>' + ogTags);
   }
-  return html;
+  // No <head> tag at all — prepend one
+  if (html.includes('<html')) {
+    return html.replace(/<html([^>]*)>/, `<html$1><head>${ogTags}</head>`);
+  }
+  return `<head>${ogTags}</head>${html}`;
 }
 
 function injectFooter(html, name, manifest, baseDomain = 'chainhost.online') {
