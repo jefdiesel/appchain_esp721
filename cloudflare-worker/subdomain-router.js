@@ -1437,12 +1437,14 @@ function imagePageHtml(name, dataUri, txHash, pixelArt, manifest, baseDomain = '
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta property="og:title" content="${name}">
+<meta property="og:description" content="${name} — permanent on-chain site powered by ChainHost">
 <meta property="og:url" content="https://${name}.${baseDomain}">
 <meta property="og:site_name" content="ChainHost">
 <meta property="og:type" content="website">
 <meta property="og:image" content="https://${name}.${baseDomain}/_og/${name}.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${name}">
+<meta name="twitter:description" content="${name} — permanent on-chain site powered by ChainHost">
 <meta name="twitter:image" content="https://${name}.${baseDomain}/_og/${name}.png">
 <title>${name}</title>
 <link rel="icon" href="${FAVICON}">
@@ -1473,15 +1475,18 @@ img{
 
 function injectOgTags(html, name, baseDomain = 'chainhost.online') {
   const ogImage = `https://${name}.${baseDomain}/_og/${name}.png`;
+  const ogDesc = `${name} — permanent on-chain site powered by ChainHost`;
   const ogTags = `
 <link rel="icon" href="${FAVICON}">
 <meta property="og:title" content="${name}">
+<meta property="og:description" content="${ogDesc}">
 <meta property="og:url" content="https://${name}.${baseDomain}">
 <meta property="og:site_name" content="ChainHost">
 <meta property="og:type" content="website">
 <meta property="og:image" content="${ogImage}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${name}">
+<meta name="twitter:description" content="${ogDesc}">
 <meta name="twitter:image" content="${ogImage}">
 `;
 
