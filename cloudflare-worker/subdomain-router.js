@@ -559,28 +559,32 @@ ${urls}
       }
       const names = namesParam.split(',').map(n => n.trim()).filter(Boolean);
       const results = {};
+      const startTime = Date.now();
+      const MAX_TIME_MS = 25000; // stop before worker timeout
       let browser;
       try {
         browser = await puppeteer.launch(env.BROWSER);
         for (const name of names) {
+          // Stop if running out of time
+          if (Date.now() - startTime > MAX_TIME_MS) {
+            for (const n of names) {
+              if (!results[n]) results[n] = 'skipped: timeout';
+            }
+            break;
+          }
           try {
             const page = await browser.newPage();
             await page.setViewport({ width: 1200, height: 630 });
             await page.goto(`https://${name}.chainhost.online`, {
               waitUntil: 'networkidle0',
-              timeout: 15000,
+              timeout: 10000,
             });
             // Skip placeholder pages (no manifest / not claimed)
-            const title = await page.title();
-            if (title.includes('Available') || title === name) {
-              // title === name means noManifestPage (title is just the name)
-              // Check page content to distinguish from real sites that use name as title
-              const bodyText = await page.evaluate(() => document.body.innerText);
-              if (bodyText.includes('not claimed') || bodyText.includes('no site is uploaded')) {
-                await page.close();
-                results[name] = 'skipped: no manifest';
-                continue;
-              }
+            const bodyText = await page.evaluate(() => document.body.innerText);
+            if (bodyText.includes('not claimed') || bodyText.includes('no site is uploaded')) {
+              await page.close();
+              results[name] = 'skipped';
+              continue;
             }
             const screenshot = await page.screenshot({ type: 'png' });
             await env.R2.put(`screenshots/${name}/home.png`, screenshot, {
