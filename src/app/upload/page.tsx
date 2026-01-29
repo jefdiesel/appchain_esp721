@@ -410,26 +410,36 @@ function UploadContent() {
     setClearingCache(false);
   };
 
-  // Screenshot all owned names (backfill)
+  // Screenshot all owned names (backfill) - batched to avoid rate limits
   const screenshotAll = async () => {
     if (ownedNames.length === 0) return;
     setScreenshotting(true);
     setScreenshotResults(null);
-    try {
-      const names = ownedNames.map(n => n.name).join(',');
-      // Use first name's subdomain to reach the worker
-      const firstPunycode = toPunycode(ownedNames[0].name);
-      const res = await fetch(
-        `https://${firstPunycode}.chainhost.online/_screenshot-all?key=ch0st-cl34r-2024&names=${encodeURIComponent(names)}`
-      );
-      if (res.ok) {
-        const data = await res.json();
-        setScreenshotResults(data);
-      } else {
-        setError("Failed to screenshot sites");
+    const allResults: Record<string, string> = {};
+    const BATCH_SIZE = 5;
+    const allNames = ownedNames.map(n => n.name);
+    const firstPunycode = toPunycode(ownedNames[0].name);
+
+    for (let i = 0; i < allNames.length; i += BATCH_SIZE) {
+      const batch = allNames.slice(i, i + BATCH_SIZE);
+      try {
+        const res = await fetch(
+          `https://${firstPunycode}.chainhost.online/_screenshot-all?key=ch0st-cl34r-2024&names=${encodeURIComponent(batch.join(','))}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          Object.assign(allResults, data);
+        } else {
+          for (const n of batch) allResults[n] = 'error: request failed';
+        }
+      } catch (e) {
+        for (const n of batch) allResults[n] = 'error: network error';
       }
-    } catch (e) {
-      setError("Failed to screenshot sites");
+      setScreenshotResults({ ...allResults });
+      // Brief pause between batches to let browser sessions clean up
+      if (i + BATCH_SIZE < allNames.length) {
+        await new Promise(r => setTimeout(r, 2000));
+      }
     }
     setScreenshotting(false);
   };

@@ -532,13 +532,35 @@ ${urls}
       }
       const names = namesParam.split(',').map(n => n.trim()).filter(Boolean);
       const results = {};
-      for (const name of names) {
-        try {
-          await captureScreenshot(env, name);
-          results[name] = 'ok';
-        } catch (e) {
-          results[name] = `error: ${e.message}`;
+      // Reuse a single browser instance to avoid rate limits
+      let browser;
+      try {
+        browser = await puppeteer.launch(env.BROWSER);
+        for (const name of names) {
+          try {
+            const page = await browser.newPage();
+            await page.setViewport({ width: 1200, height: 630 });
+            await page.goto(`https://${name}.chainhost.online`, {
+              waitUntil: 'networkidle0',
+              timeout: 15000,
+            });
+            const screenshot = await page.screenshot({ type: 'png' });
+            await env.R2.put(`screenshots/${name}/home.png`, screenshot, {
+              httpMetadata: { contentType: 'image/png' },
+            });
+            await page.close();
+            results[name] = 'ok';
+          } catch (e) {
+            results[name] = `error: ${e.message}`;
+          }
         }
+      } catch (e) {
+        // If browser launch itself fails, mark all remaining as failed
+        for (const name of names) {
+          if (!results[name]) results[name] = `error: ${e.message}`;
+        }
+      } finally {
+        if (browser) await browser.close().catch(() => {});
       }
       return new Response(JSON.stringify(results, null, 2), {
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
