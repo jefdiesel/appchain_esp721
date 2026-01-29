@@ -532,35 +532,60 @@ ${urls}
       }
       const names = namesParam.split(',').map(n => n.trim()).filter(Boolean);
       const results = {};
-      // Reuse a single browser instance to avoid rate limits
-      let browser;
-      try {
-        browser = await puppeteer.launch(env.BROWSER);
-        for (const name of names) {
-          try {
-            const page = await browser.newPage();
-            await page.setViewport({ width: 1200, height: 630 });
-            await page.goto(`https://${name}.chainhost.online`, {
-              waitUntil: 'networkidle0',
-              timeout: 15000,
-            });
-            const screenshot = await page.screenshot({ type: 'png' });
-            await env.R2.put(`screenshots/${name}/home.png`, screenshot, {
-              httpMetadata: { contentType: 'image/png' },
-            });
-            await page.close();
-            results[name] = 'ok';
-          } catch (e) {
-            results[name] = `error: ${e.message}`;
+
+      // First pass: check which names have manifests
+      const namesWithManifest = [];
+      for (const name of names) {
+        try {
+          const nameSha = await sha256(`data:,${name}`);
+          const nameRes = await fetch(`${ETHSCRIPTIONS_API}/ethscriptions/exists/0x${nameSha}`);
+          const nameData = await nameRes.json();
+          if (!nameData?.result?.exists) {
+            results[name] = 'skipped: not registered';
+            continue;
           }
+          const owner = nameData.result.ethscription.current_owner;
+          const manifest = await findManifestCached(env, owner, name);
+          if (!manifest) {
+            results[name] = 'skipped: no manifest';
+            continue;
+          }
+          namesWithManifest.push(name);
+        } catch (e) {
+          results[name] = `skipped: ${e.message}`;
         }
-      } catch (e) {
-        // If browser launch itself fails, mark all remaining as failed
-        for (const name of names) {
-          if (!results[name]) results[name] = `error: ${e.message}`;
+      }
+
+      // Second pass: screenshot only names with manifests
+      if (namesWithManifest.length > 0) {
+        let browser;
+        try {
+          browser = await puppeteer.launch(env.BROWSER);
+          for (const name of namesWithManifest) {
+            try {
+              const page = await browser.newPage();
+              await page.setViewport({ width: 1200, height: 630 });
+              await page.goto(`https://${name}.chainhost.online`, {
+                waitUntil: 'networkidle0',
+                timeout: 15000,
+              });
+              const screenshot = await page.screenshot({ type: 'png' });
+              await env.R2.put(`screenshots/${name}/home.png`, screenshot, {
+                httpMetadata: { contentType: 'image/png' },
+              });
+              await page.close();
+              results[name] = 'ok';
+            } catch (e) {
+              results[name] = `error: ${e.message}`;
+            }
+          }
+        } catch (e) {
+          for (const name of namesWithManifest) {
+            if (!results[name]) results[name] = `error: ${e.message}`;
+          }
+        } finally {
+          if (browser) await browser.close().catch(() => {});
         }
-      } finally {
-        if (browser) await browser.close().catch(() => {});
       }
       return new Response(JSON.stringify(results, null, 2), {
         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
