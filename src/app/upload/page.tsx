@@ -416,7 +416,7 @@ function UploadContent() {
     setScreenshotting(true);
     setScreenshotResults(null);
     const allResults: Record<string, string> = {};
-    const BATCH_SIZE = 5;
+    const BATCH_SIZE = 3;
     const allNames = ownedNames.map(n => n.name);
     const firstPunycode = toPunycode(ownedNames[0].name);
 
