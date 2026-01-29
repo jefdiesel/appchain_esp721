@@ -43,6 +43,10 @@ database_id = "feba224b-bf23-44ce-b32a-8b2325f0a5d1"
 binding = "R2"
 bucket_name = "chainhost-email"
 
+# Browser Rendering for OG screenshots
+[browser]
+binding = "BROWSER"
+
 [vars]
 CACHE_CLEAR_KEY = "ch0st-cl34r-2024"
 

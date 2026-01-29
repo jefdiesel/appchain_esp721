@@ -56,6 +56,8 @@ function UploadContent() {
   const [error, setError] = useState("");
   const [cacheCleared, setCacheCleared] = useState(false);
   const [clearingCache, setClearingCache] = useState(false);
+  const [screenshotting, setScreenshotting] = useState(false);
+  const [screenshotResults, setScreenshotResults] = useState<Record<string, string> | null>(null);
 
   // Scan wallet for owned names (cursor-based pagination)
   const scanWalletForNames = async (wallet: string) => {
@@ -408,6 +410,30 @@ function UploadContent() {
     setClearingCache(false);
   };
 
+  // Screenshot all owned names (backfill)
+  const screenshotAll = async () => {
+    if (ownedNames.length === 0) return;
+    setScreenshotting(true);
+    setScreenshotResults(null);
+    try {
+      const names = ownedNames.map(n => n.name).join(',');
+      // Use first name's subdomain to reach the worker
+      const firstPunycode = toPunycode(ownedNames[0].name);
+      const res = await fetch(
+        `https://${firstPunycode}.chainhost.online/_screenshot-all?key=ch0st-cl34r-2024&names=${encodeURIComponent(names)}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setScreenshotResults(data);
+      } else {
+        setError("Failed to screenshot sites");
+      }
+    } catch (e) {
+      setError("Failed to screenshot sites");
+    }
+    setScreenshotting(false);
+  };
+
   // Filter and sort names
   const filteredNames = ownedNames
     .filter(n => !nameSearch || n.name.toLowerCase().includes(nameSearch.toLowerCase()))
@@ -550,6 +576,27 @@ function UploadContent() {
                         <p className="text-center text-gray-500 py-4">
                           No names match &quot;{nameSearch}&quot;
                         </p>
+                      )}
+                    </div>
+
+                    {/* Screenshot backfill */}
+                    <div className="mt-4 pt-4 border-t border-zinc-800">
+                      <button
+                        onClick={screenshotAll}
+                        disabled={screenshotting}
+                        className="w-full py-2 text-sm bg-zinc-800 text-gray-400 rounded-lg hover:text-white hover:bg-zinc-700 disabled:opacity-50 transition"
+                      >
+                        {screenshotting ? "Capturing screenshots..." : "Screenshot All Sites (OG images)"}
+                      </button>
+                      {screenshotResults && (
+                        <div className="mt-2 text-xs text-gray-500 max-h-32 overflow-y-auto space-y-1">
+                          {Object.entries(screenshotResults).map(([name, status]) => (
+                            <div key={name} className="flex justify-between">
+                              <span>{name}</span>
+                              <span className={status === 'ok' ? 'text-[#C3FF00]' : 'text-red-400'}>{status}</span>
+                            </div>
+                          ))}
+                        </div>
                       )}
                     </div>
                   </div>

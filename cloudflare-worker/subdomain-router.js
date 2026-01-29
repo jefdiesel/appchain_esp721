@@ -7,7 +7,10 @@
  *   /previous   → auto-generated history page
  *   /recovery   → universal recovery page with git link
  *   /sw.js      → service worker
+ *   /_og/:name.png → OG screenshot image
  */
+
+import puppeteer from '@cloudflare/puppeteer';
 
 const ETHSCRIPTIONS_API = 'https://api.ethscriptions.com/v2';
 const BASE_RPC = 'https://mainnet.base.org';
@@ -18,6 +21,35 @@ const FAVICON = 'https://chainhost.online/favicon.png';
 
 // Cache TTL in seconds (1 hour for manifests)
 const MANIFEST_CACHE_TTL = 3600;
+
+// RPC proxy configuration - ethscription names mapped to chain endpoints
+const RPC_PROXY_MAP = {
+  'mainnetrpc': {
+    chainId: 1,
+    name: 'Ethereum Mainnet',
+    rpcs: ['https://eth.llamarpc.com', 'https://eth.drpc.org', 'https://rpc.ankr.com/eth', 'https://ethereum-rpc.publicnode.com']
+  },
+  '137polygon': {
+    chainId: 137,
+    name: 'Polygon',
+    rpcs: ['https://polygon-rpc.com', 'https://rpc-mainnet.matic.quiknode.pro']
+  },
+  '42161': {
+    chainId: 42161,
+    name: 'Arbitrum One',
+    rpcs: ['https://arbitrum.drpc.org', 'https://public-arb-mainnet.fastnode.io']
+  },
+  '8453base': {
+    chainId: 8453,
+    name: 'Base',
+    rpcs: ['https://mainnet.base.org', 'https://base.drpc.org']
+  },
+  '11155111': {
+    chainId: 11155111,
+    name: 'Sepolia',
+    rpcs: ['https://sepolia.drpc.org', 'https://0xrpc.io/sep']
+  },
+};
 
 // chost.app landing page
 const CHOST_LANDING = `<!DOCTYPE html>
@@ -368,7 +400,7 @@ const IMMUTABLE_LANDING = `<!DOCTYPE html>
 </html>`;
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
     // Redirect HTTP to HTTPS
@@ -445,6 +477,74 @@ ${urls}
       });
     }
 
+    // Serve OG screenshot images from R2 (with SVG fallback)
+    if (path.startsWith('/_og/') && path.endsWith('.png')) {
+      const ogName = path.slice(5, -4); // extract name from /_og/{name}.png
+      try {
+        const obj = await env.R2.get(`screenshots/${ogName}/home.png`);
+        if (obj) {
+          return new Response(obj.body, {
+            headers: {
+              'Content-Type': 'image/png',
+              'Cache-Control': 'public, max-age=3600',
+            },
+          });
+        }
+      } catch (e) {
+        // R2 fetch failed, fall through to default
+      }
+      // Fallback: branded SVG with site name
+      return new Response(defaultOgSvg(ogName), {
+        headers: {
+          'Content-Type': 'image/svg+xml',
+          'Cache-Control': 'public, max-age=300',
+        },
+      });
+    }
+
+    // Manual screenshot capture: /_screenshot?name=X&key=SECRET
+    if (path === '/_screenshot') {
+      const name = url.searchParams.get('name');
+      const key = url.searchParams.get('key');
+      if (key !== env.CACHE_CLEAR_KEY) {
+        return new Response('Unauthorized', { status: 401 });
+      }
+      if (!name) {
+        return new Response('Missing name parameter', { status: 400 });
+      }
+      try {
+        await captureScreenshot(env, name);
+        return new Response(`Screenshot captured for ${name}`, { status: 200 });
+      } catch (e) {
+        return new Response(`Screenshot failed: ${e.message}`, { status: 500 });
+      }
+    }
+
+    // Backfill screenshots for multiple names: /_screenshot-all?key=SECRET&names=a,b,c
+    if (path === '/_screenshot-all') {
+      const key = url.searchParams.get('key');
+      if (key !== env.CACHE_CLEAR_KEY) {
+        return new Response('Unauthorized', { status: 401 });
+      }
+      const namesParam = url.searchParams.get('names');
+      if (!namesParam) {
+        return new Response('Missing names parameter (comma-separated)', { status: 400 });
+      }
+      const names = namesParam.split(',').map(n => n.trim()).filter(Boolean);
+      const results = {};
+      for (const name of names) {
+        try {
+          await captureScreenshot(env, name);
+          results[name] = 'ok';
+        } catch (e) {
+          results[name] = `error: ${e.message}`;
+        }
+      }
+      return new Response(JSON.stringify(results, null, 2), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     // Cache clear endpoint: /_clear?name=foo&key=SECRET
     if (path === '/_clear') {
       const name = url.searchParams.get('name');
@@ -475,7 +575,12 @@ ${urls}
         await env.CACHE.delete(cacheKey);
       }
 
-      return new Response(`Cache cleared for ${name}`, { status: 200 });
+      // Capture OG screenshot in the background (don't block response)
+      ctx.waitUntil(
+        captureScreenshot(env, name).catch(e => console.error('Screenshot failed:', e.message))
+      );
+
+      return new Response(`Cache cleared for ${name}. Screenshot queued.`, { status: 200 });
     }
 
     // Extract subdomain - support chainhost.online, chost.app, immutable.church
@@ -496,6 +601,119 @@ ${urls}
     const reserved = ['www', 'api', 'app', 'dashboard', 'admin', 'mail', 'ftp'];
     if (reserved.includes(name)) {
       return Response.redirect(`https://${baseDomain}` + path, 302);
+    }
+
+    // RPC proxy - handle ethscription names that map to chain RPCs
+    const rpcConfig = RPC_PROXY_MAP[name];
+    if (rpcConfig) {
+      // CORS preflight
+      if (request.method === 'OPTIONS') {
+        return new Response(null, {
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Max-Age': '86400',
+          },
+        });
+      }
+
+      const corsHeaders = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      };
+
+      // POST = JSON-RPC proxy with failover + caching + rate limiting
+      if (request.method === 'POST') {
+        // Rate limiting: 60 requests per minute per IP per chain
+        try {
+          const clientIP = request.headers.get('CF-Connecting-IP') || 'unknown';
+          const rateLimitKey = `rpc-rl:${name}:${clientIP}:${Math.floor(Date.now() / 60000)}`;
+          if (env.CACHE) {
+            const count = parseInt(await env.CACHE.get(rateLimitKey) || '0');
+            if (count >= 60) {
+              return new Response(JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32005, message: 'Rate limit exceeded. 60 requests/min per IP.' } }), {
+                status: 429,
+                headers: { 'Content-Type': 'application/json', 'Retry-After': '60', ...corsHeaders },
+              });
+            }
+            await env.CACHE.put(rateLimitKey, String(count + 1), { expirationTtl: 120 });
+          }
+        } catch (e) { /* rate limit KV failure - allow request through */ }
+
+        const body = await request.text();
+        let parsed;
+        try { parsed = JSON.parse(body); } catch { parsed = null; }
+
+        // Cache read-only methods (12s TTL for block-dependent, 300s for static)
+        const CACHEABLE_SHORT = ['eth_blockNumber', 'eth_gasPrice', 'eth_getBlockByNumber'];
+        const CACHEABLE_LONG = ['eth_call', 'eth_getBalance', 'eth_getCode', 'eth_getTransactionCount', 'eth_getStorageAt', 'eth_chainId', 'net_version'];
+        const method = parsed?.method;
+        const cacheableTtl = CACHEABLE_SHORT.includes(method) ? 12
+          : CACHEABLE_LONG.includes(method) ? 300
+          : 0;
+
+        // Check cache for read-only calls
+        if (cacheableTtl > 0 && env.CACHE) {
+          try {
+            const rpcCacheKey = `rpc:${name}:${method}:${JSON.stringify(parsed?.params || [])}`;
+            const cached = await env.CACHE.get(rpcCacheKey);
+            if (cached) {
+              return new Response(cached, {
+                headers: { 'Content-Type': 'application/json', 'X-Cache': 'HIT', ...corsHeaders },
+              });
+            }
+          } catch (e) { /* cache read failure - fall through to RPC */ }
+        }
+
+        // Try each backend RPC with failover
+        let lastError = null;
+        for (const rpc of rpcConfig.rpcs) {
+          try {
+            const res = await fetch(rpc, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body,
+            });
+            if (res.ok) {
+              const data = await res.json();
+              if (data.result !== undefined) {
+                const responseBody = JSON.stringify(data);
+
+                // Cache the result (best effort)
+                if (cacheableTtl > 0 && env.CACHE) {
+                  try {
+                    const rpcCacheKey = `rpc:${name}:${method}:${JSON.stringify(parsed?.params || [])}`;
+                    env.CACHE.put(rpcCacheKey, responseBody, { expirationTtl: cacheableTtl });
+                  } catch (e) { /* cache write failure - ignore */ }
+                }
+
+                return new Response(responseBody, {
+                  headers: { 'Content-Type': 'application/json', 'X-Cache': 'MISS', ...corsHeaders },
+                });
+              }
+              lastError = data.error;
+            }
+          } catch (e) { lastError = e.message; }
+        }
+        return new Response(JSON.stringify({ jsonrpc: '2.0', id: parsed?.id || null, error: lastError || { code: -32000, message: 'All RPC endpoints failed' } }), {
+          status: 502,
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        });
+      }
+
+      // GET /endpoints - return raw RPC list
+      if (path === '/endpoints') {
+        return new Response(JSON.stringify(rpcConfig.rpcs), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        });
+      }
+
+      // GET / - landing page
+      return new Response(rpcLandingPage(name, rpcConfig, baseDomain), {
+        headers: { 'Content-Type': 'text/html', ...corsHeaders },
+      });
     }
 
     try {
@@ -619,6 +837,50 @@ ${urls}
 };
 
 // ============ Helpers ============
+
+function defaultOgSvg(name) {
+  // Lime/black branded fallback — chain link pattern with logo
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#000"/>
+  <!-- Chain link pattern -->
+  <g opacity="0.08" stroke="#C3FF00" stroke-width="2" fill="none">
+    ${Array.from({length: 8}, (_, i) =>
+      `<ellipse cx="${150 * i + 75}" cy="315" rx="60" ry="30"/>
+       <ellipse cx="${150 * i + 150}" cy="315" rx="60" ry="30"/>`
+    ).join('')}
+  </g>
+  <!-- Site name -->
+  <text x="600" y="280" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="72" font-weight="bold" fill="#fff">${escapeXml(name)}</text>
+  <text x="600" y="340" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="28" fill="#888">.chainhost.online</text>
+  <!-- Branding -->
+  <text x="600" y="520" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="20" fill="#C3FF00">Permanent on-chain hosting</text>
+  <text x="600" y="555" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="16" fill="#555">Powered by Ethscriptions</text>
+  <!-- Top accent line -->
+  <rect x="0" y="0" width="1200" height="4" fill="#C3FF00"/>
+</svg>`;
+}
+
+function escapeXml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+async function captureScreenshot(env, name) {
+  const browser = await puppeteer.launch(env.BROWSER);
+  try {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1200, height: 630 });
+    await page.goto(`https://${name}.chainhost.online`, {
+      waitUntil: 'networkidle0',
+      timeout: 15000,
+    });
+    const screenshot = await page.screenshot({ type: 'png' });
+    await env.R2.put(`screenshots/${name}/home.png`, screenshot, {
+      httpMetadata: { contentType: 'image/png' },
+    });
+  } finally {
+    await browser.close();
+  }
+}
 
 // Punycode decoder for internationalized domain names (IDN)
 // Decodes "xn--kpry57d" back to "梦"
@@ -1105,6 +1367,10 @@ function imagePageHtml(name, dataUri, txHash, pixelArt, manifest, baseDomain = '
 <meta property="og:url" content="https://${name}.${baseDomain}">
 <meta property="og:site_name" content="ChainHost">
 <meta property="og:type" content="website">
+<meta property="og:image" content="https://${name}.${baseDomain}/_og/${name}.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${name}">
+<meta name="twitter:image" content="https://${name}.${baseDomain}/_og/${name}.png">
 <title>${name}</title>
 <link rel="icon" href="${FAVICON}">
 <style>
@@ -1133,12 +1399,17 @@ img{
 }
 
 function injectOgTags(html, name, baseDomain = 'chainhost.online') {
+  const ogImage = `https://${name}.${baseDomain}/_og/${name}.png`;
   const ogTags = `
 <link rel="icon" href="${FAVICON}">
 <meta property="og:title" content="${name}">
 <meta property="og:url" content="https://${name}.${baseDomain}">
 <meta property="og:site_name" content="ChainHost">
 <meta property="og:type" content="website">
+<meta property="og:image" content="${ogImage}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${name}">
+<meta name="twitter:image" content="${ogImage}">
 `;
 
   // Inject after <head> or before </head>
@@ -1376,6 +1647,111 @@ h1{font-size:2rem;margin-bottom:0.5rem}
 <p class="note">Only showing content linked via chainhost manifests</p>
 <a href="/" class="back">← Back to site</a>
 </div>
+</body></html>`;
+}
+
+function rpcLandingPage(name, config, baseDomain = 'chainhost.online') {
+  const endpoint = `https://${name}.${baseDomain}`;
+  const minified = `(function(C){const B='${endpoint}';window.RPC={call:async(m,p)=>{let r=await fetch(B,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:m,params:p})});let d=await r.json();return d.error?null:d.result;}};})();`;
+
+  return `<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${config.name} RPC - ${name}.${baseDomain}</title>
+<link rel="icon" href="${FAVICON}">
+<meta property="og:title" content="${config.name} RPC Proxy">
+<meta property="og:description" content="Free JSON-RPC proxy for ${config.name} (Chain ID: ${config.chainId}) with automatic failover. Powered by ChainHost.">
+<meta property="og:url" content="${endpoint}">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,-apple-system,sans-serif;background:#000;color:#e8e8e8;min-height:100vh;line-height:1.7}
+.header{padding:60px 20px;text-align:center;border-bottom:1px solid #222}
+h1{font-size:2rem;font-weight:bold;margin-bottom:0.5rem}
+h1 .hi{color:#C3FF00}
+.tag{color:#888;font-size:1rem}
+.chain{font-family:monospace;color:#C3FF00;background:#111;border:1px solid #333;padding:4px 12px;border-radius:6px;font-size:0.875rem;display:inline-block;margin-top:1rem}
+main{max-width:700px;margin:0 auto;padding:40px 20px}
+h2{color:#C3FF00;font-size:0.75rem;text-transform:uppercase;letter-spacing:2px;margin:2.5rem 0 1rem}
+h2:first-of-type{margin-top:0}
+p{color:#aaa;margin-bottom:1rem;font-size:0.9rem}
+.box{background:#0a0a0a;border:1px solid #222;border-radius:12px;padding:20px;margin-bottom:1rem}
+pre{background:#111;border:1px solid #333;border-radius:8px;padding:16px;overflow-x:auto;font-size:0.8rem;color:#C3FF00;line-height:1.5}
+code{background:#111;border:1px solid #333;padding:2px 8px;border-radius:4px;font-size:0.8rem;color:#C3FF00}
+.endpoints{display:flex;flex-direction:column;gap:8px}
+.ep{padding:10px 16px;background:#111;border:1px solid #222;border-radius:8px;font-family:monospace;font-size:0.8rem;color:#888}
+.feat{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:1rem 0}
+.feat div{padding:10px 14px;background:#0a0a0a;border:1px solid #222;border-radius:8px;font-size:0.8rem;color:#888}
+.feat div span{color:#C3FF00;margin-right:6px}
+footer{text-align:center;padding:40px 20px;border-top:1px solid #222;color:#444;font-size:0.8rem}
+footer a{color:#C3FF00;text-decoration:none}
+</style>
+</head><body>
+<header class="header">
+<h1><span class="hi">${config.name}</span> RPC</h1>
+<p class="tag">Free JSON-RPC proxy with automatic failover</p>
+<div class="chain">Chain ID: ${config.chainId}</div>
+</header>
+<main>
+<h2>Endpoint</h2>
+<div class="box">
+<pre>POST ${endpoint}</pre>
+<p style="margin-top:12px;margin-bottom:0;font-size:0.8rem">Send standard JSON-RPC requests. Failover between backends is handled server-side.</p>
+</div>
+
+<h2>Drop-in Module (~250 bytes)</h2>
+<div class="box">
+<pre>${minified}</pre>
+<p style="margin-top:12px;margin-bottom:0;font-size:0.8rem">Paste into any HTML inscription. Then use: <code>RPC.call('eth_blockNumber',[])</code></p>
+</div>
+
+<h2>Usage</h2>
+<div class="box">
+<pre>// Get block number
+RPC.call('eth_blockNumber', []).then(console.log);
+
+// Call a contract
+RPC.call('eth_call', [{to: '0x...', data: '0x...'}, 'latest'])
+  .then(console.log);
+
+// Get balance
+RPC.call('eth_getBalance', ['0x...', 'latest'])
+  .then(console.log);
+
+// Or use fetch directly:
+fetch('${endpoint}', {
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  body: JSON.stringify({
+    jsonrpc: '2.0', id: 1,
+    method: 'eth_blockNumber', params: []
+  })
+}).then(r => r.json()).then(console.log);</pre>
+</div>
+
+<h2>Backend Endpoints</h2>
+<div class="endpoints">
+${config.rpcs.map(r => `<div class="ep">${r}</div>`).join('\n')}
+</div>
+
+<h2>Features</h2>
+<div class="feat">
+<div><span>+</span>Server-side failover</div>
+<div><span>+</span>CORS enabled</div>
+<div><span>+</span>No API key needed</div>
+<div><span>+</span>Edge network (CF)</div>
+<div><span>+</span>~250 byte client</div>
+<div><span>+</span>On-chain identity</div>
+</div>
+
+<h2>All Chains</h2>
+<div class="endpoints">
+${Object.entries(RPC_PROXY_MAP).map(([n, c]) => `<a href="https://${n}.${baseDomain}" style="padding:10px 16px;background:${n === name ? '#111' : '#0a0a0a'};border:1px solid ${n === name ? '#C3FF00' : '#222'};border-radius:8px;font-size:0.8rem;color:#888;text-decoration:none;display:flex;justify-content:space-between"><span style="color:#fff">${c.name}</span><span style="color:#555">${n}.${baseDomain}</span></a>`).join('\n')}
+</div>
+</main>
+<footer>
+<p>Powered by <a href="https://chainhost.online">ChainHost</a> &middot; Names are <a href="https://ethscriptions.com">Ethscriptions</a></p>
+</footer>
 </body></html>`;
 }
 
