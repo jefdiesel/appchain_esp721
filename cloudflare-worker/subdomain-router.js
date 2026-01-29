@@ -507,16 +507,16 @@ ${urls}
       const name = url.searchParams.get('name');
       const key = url.searchParams.get('key');
       if (key !== env.CACHE_CLEAR_KEY) {
-        return new Response('Unauthorized', { status: 401 });
+        return new Response('Unauthorized', { status: 401, headers: { 'Access-Control-Allow-Origin': '*' } });
       }
       if (!name) {
-        return new Response('Missing name parameter', { status: 400 });
+        return new Response('Missing name parameter', { status: 400, headers: { 'Access-Control-Allow-Origin': '*' } });
       }
       try {
         await captureScreenshot(env, name);
-        return new Response(`Screenshot captured for ${name}`, { status: 200 });
+        return new Response(`Screenshot captured for ${name}`, { status: 200, headers: { 'Access-Control-Allow-Origin': '*' } });
       } catch (e) {
-        return new Response(`Screenshot failed: ${e.message}`, { status: 500 });
+        return new Response(`Screenshot failed: ${e.message}`, { status: 500, headers: { 'Access-Control-Allow-Origin': '*' } });
       }
     }
 
@@ -524,11 +524,11 @@ ${urls}
     if (path === '/_screenshot-all') {
       const key = url.searchParams.get('key');
       if (key !== env.CACHE_CLEAR_KEY) {
-        return new Response('Unauthorized', { status: 401 });
+        return new Response('Unauthorized', { status: 401, headers: { 'Access-Control-Allow-Origin': '*' } });
       }
       const namesParam = url.searchParams.get('names');
       if (!namesParam) {
-        return new Response('Missing names parameter (comma-separated)', { status: 400 });
+        return new Response('Missing names parameter (comma-separated)', { status: 400, headers: { 'Access-Control-Allow-Origin': '*' } });
       }
       const names = namesParam.split(',').map(n => n.trim()).filter(Boolean);
       const results = {};
@@ -541,7 +541,7 @@ ${urls}
         }
       }
       return new Response(JSON.stringify(results, null, 2), {
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
       });
     }
 
