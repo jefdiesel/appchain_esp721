@@ -493,13 +493,39 @@ ${urls}
       } catch (e) {
         // R2 fetch failed, fall through to default
       }
-      // Fallback: branded SVG with site name
-      return new Response(defaultOgSvg(ogName), {
-        headers: {
-          'Content-Type': 'image/svg+xml',
-          'Cache-Control': 'public, max-age=300',
-        },
-      });
+      // Fallback: render branded SVG as PNG via Browser Rendering
+      try {
+        const svg = defaultOgSvg(ogName);
+        const html = `<!DOCTYPE html><html><head><style>*{margin:0;padding:0}</style></head><body>${svg}</body></html>`;
+        const browser = await puppeteer.launch(env.BROWSER);
+        try {
+          const page = await browser.newPage();
+          await page.setViewport({ width: 1200, height: 630 });
+          await page.setContent(html, { waitUntil: 'load' });
+          const png = await page.screenshot({ type: 'png' });
+          // Cache it in R2 so we don't re-render next time
+          await env.R2.put(`screenshots/${ogName}/home.png`, png, {
+            httpMetadata: { contentType: 'image/png' },
+          });
+          await page.close();
+          return new Response(png, {
+            headers: {
+              'Content-Type': 'image/png',
+              'Cache-Control': 'public, max-age=3600',
+            },
+          });
+        } finally {
+          await browser.close();
+        }
+      } catch (e) {
+        // If browser rendering fails, serve SVG as last resort
+        return new Response(defaultOgSvg(ogName), {
+          headers: {
+            'Content-Type': 'image/svg+xml',
+            'Cache-Control': 'public, max-age=300',
+          },
+        });
+      }
     }
 
     // Manual screenshot capture: /_screenshot?name=X&key=SECRET
