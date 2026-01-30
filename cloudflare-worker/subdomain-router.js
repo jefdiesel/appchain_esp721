@@ -2088,9 +2088,9 @@ Migrated! <a id="uni-link" href="#" target="_blank">Trade on Uniswap</a>
 <div class="pg"><div class="pf" id="sb" style="width:0%"></div></div>
 <div class="sr"><span class="sl">Reserve</span><span class="sv" id="rv">0 ETH</span></div>
 <div class="sr"><span class="sl">Curve</span><span class="sv">x<sup>1.5</sup></span></div></div>
-<div class="cd"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem"><h2 style="margin:0">Chart</h2><div class="chtabs"><button class="chtab a" id="cht-curve" onclick="switchChart('curve')">Curve</button><button class="chtab" id="cht-candle" onclick="switchChart('candle')">Candles</button></div></div>
-<div id="curve-wrap"><canvas id="cc" height="200"></canvas></div>
-<div id="candle-wrap" style="display:none"><div class="tf"><button class="tfb a" onclick="setTf(300)">5m</button><button class="tfb" onclick="setTf(3600)">1h</button><button class="tfb" onclick="setTf(14400)">4h</button><button class="tfb" onclick="setTf(86400)">1d</button></div><canvas id="candle-cv" height="200"></canvas><div class="ch-loading" id="candle-load">Loading trades...</div></div></div>
+<div class="cd"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem"><h2 style="margin:0">Chart</h2><div class="chtabs"><button class="chtab" id="cht-curve" onclick="switchChart('curve')">Curve</button><button class="chtab a" id="cht-candle" onclick="switchChart('candle')">Candles</button></div></div>
+<div id="curve-wrap" style="display:none"><canvas id="cc" height="200"></canvas></div>
+<div id="candle-wrap"><div class="tf"><button class="tfb a" onclick="setTf(300)">5m</button><button class="tfb" onclick="setTf(3600)">1h</button><button class="tfb" onclick="setTf(14400)">4h</button><button class="tfb" onclick="setTf(86400)">1d</button></div><canvas id="candle-cv" height="200"></canvas><div class="ch-loading" id="candle-load">Loading trades...</div></div></div>
 <div class="info"><h2>How it works</h2><ul>
 <li>Migrates to <b style="color:var(--text)">Uniswap V2</b> at 69% supply sold</li>
 <li>0.69% fee on sells during bonding phase</li>
@@ -2157,6 +2157,7 @@ document.getElementById("rv").textContent=Number(ethers.formatEther(rv)).toFixed
 if(isMigrated){document.getElementById("migrated-msg").style.display="block";document.getElementById("trade-card").style.display="none";
 document.getElementById("uni-link").href="https://app.uniswap.org/#/swap?outputCurrency="+TOKEN_ADDRESS}
 dc(sN,mN,Number(ethers.formatEther(r[3])));
+if(!tradeData)loadTrades();
 }catch(e){console.error("refresh",e)}
 }
 function sm(m){md=m;document.getElementById("tb").className=m==="b"?"tab a":"tab";document.getElementById("ts2").className=m==="s"?"tab a":"tab";
@@ -2189,37 +2190,42 @@ var sp=sN/mN;cx.beginPath();cx.fillStyle="#c3ff0022";
 for(var i=0;i<=Math.floor(sp*200);i++){var s=mN/200*i,p=gp(s,mN,bp),x=i/200*W,y2=H-(p/mP)*(H-10)-5;i===0?(cx.moveTo(x,H),cx.lineTo(x,y2)):cx.lineTo(x,y2)}
 cx.lineTo(sp*W,H);cx.closePath();cx.fill();
 if(sN>0){var cx2=sp*W,cy=H-(gp(sN,mN,bp)/mP)*(H-10)-5;cx.beginPath();cx.arc(cx2,cy,5,0,Math.PI*2);cx.fillStyle="#c3ff00";cx.fill();cx.strokeStyle="#fff";cx.lineWidth=2;cx.stroke()}}
-var chartMode="curve",candleTf=3600,tradeData=null;
+var chartMode="candle",candleTf=3600,tradeData=null;
 function switchChart(m){chartMode=m;document.getElementById("cht-curve").className=m==="curve"?"chtab a":"chtab";document.getElementById("cht-candle").className=m==="candle"?"chtab a":"chtab";document.getElementById("curve-wrap").style.display=m==="curve"?"block":"none";document.getElementById("candle-wrap").style.display=m==="candle"?"block":"none";if(m==="candle"&&!tradeData)loadTrades()}
 function setTf(t){candleTf=t;document.querySelectorAll(".tfb").forEach(function(b){b.className=parseInt(b.textContent==="5m"?300:b.textContent==="1h"?3600:b.textContent==="4h"?14400:86400)===t?"tfb a":"tfb"});if(tradeData)drawCandles()}
 async function loadTrades(){
 var el=document.getElementById("candle-load");el.style.display="block";el.textContent="Loading trades...";
 try{
 var rpc=provider||new ethers.JsonRpcProvider("https://ethereum-rpc.publicnode.com");
-var tc=new ethers.Contract(TOKEN_ADDRESS,["event Transfer(address indexed from,address indexed to,uint256 value)"],rpc);
+var tc=new ethers.Contract(TOKEN_ADDRESS,[...TOKEN_ABI,"event Transfer(address indexed from,address indexed to,uint256 value)"],rpc);
+if(!maxSupply||!basePrice){var r=await Promise.all([tc.maxSupply(),tc.basePrice()]);maxSupply=r[0];basePrice=r[1]}
 var bn=await rpc.getBlockNumber();
 var fromBlock=Math.max(0,bn-200000);
-var logs=await tc.queryFilter("Transfer",fromBlock);
+var logs=[];
+var chunkSize=10000;
+for(var start=fromBlock;start<=bn;start+=chunkSize){
+var end=Math.min(start+chunkSize-1,bn);
+try{var chunk=await tc.queryFilter("Transfer",start,end);logs=logs.concat(chunk)}catch(e2){
+try{var half=Math.floor((end-start)/2);var c1=await tc.queryFilter("Transfer",start,start+half);var c2=await tc.queryFilter("Transfer",start+half+1,end);logs=logs.concat(c1,c2)}catch(e3){console.error("chunk fail",start,end,e3)}
+}}
 if(!logs.length){el.textContent="No trades yet";return}
 var blocks={};var trades=[];
-var batchSize=50;
-for(var i=0;i<logs.length;i+=batchSize){
-var batch=logs.slice(i,i+batchSize);
+for(var i=0;i<logs.length;i+=20){
+var batch=logs.slice(i,i+20);
 var needed=batch.filter(function(l){return!blocks[l.blockNumber]}).map(function(l){return l.blockNumber});
 var unique=[...new Set(needed)];
-var results=await Promise.all(unique.map(function(b){return rpc.getBlock(b)}));
-results.forEach(function(b){if(b)blocks[b.number]=b.timestamp})
+if(unique.length){var results=await Promise.all(unique.map(function(b){return rpc.getBlock(b)}));
+results.forEach(function(b){if(b)blocks[b.number]=b.timestamp})}
 }
 var ZERO="0x0000000000000000000000000000000000000000";
 var runSupply=0;
+var mN2=Number(ethers.formatEther(maxSupply)),bp2=Number(ethers.formatEther(basePrice));
 for(var i=0;i<logs.length;i++){
 var l=logs[i];var from=l.args[0],to=l.args[1],val=Number(ethers.formatEther(l.args[2]));
 var isBuy=from===ZERO,isSell=to===ZERO;
 if(isBuy)runSupply+=val;
 else if(isSell)runSupply-=val;
 else continue;
-if(!maxSupply||!basePrice)continue;
-var mN2=Number(ethers.formatEther(maxSupply)),bp2=Number(ethers.formatEther(basePrice));
 var price=gp(Math.max(0,runSupply),mN2,bp2);
 trades.push({t:blocks[l.blockNumber]||0,p:price,buy:isBuy,vol:val})
 }
