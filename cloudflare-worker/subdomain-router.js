@@ -960,7 +960,7 @@ function bondingOgSvg(name) {
   <!-- Token name -->
   <text x="600" y="240" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="96" font-weight="bold" fill="#C3FF00">$${esc}</text>
   <!-- Subtitle -->
-  <text x="600" y="310" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="32" fill="#888">bonding curve</text>
+  <text x="600" y="310" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="32" fill="#888">Polynomial curve</text>
   <!-- Info pills -->
   <rect x="200" y="380" width="240" height="44" rx="22" fill="#1e1e2e"/>
   <text x="320" y="408" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="18" fill="#e0e0e0">Uniswap V2 at 69%</text>
@@ -969,8 +969,8 @@ function bondingOgSvg(name) {
   <rect x="760" y="380" width="200" height="44" rx="22" fill="#1e1e2e"/>
   <text x="860" y="408" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="18" fill="#e0e0e0">0.69% sell fee</text>
   <!-- Footer -->
-  <text x="600" y="540" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="20" fill="#C3FF00">chainhost.online</text>
-  <text x="600" y="575" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="16" fill="#555">Use at your own risk · Unaudited</text>
+  <text x="600" y="540" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="20" fill="#C3FF00">${esc}.chainhost.online</text>
+  <text x="600" y="575" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="16" fill="#555">fafo</text>
 </svg>`;
 }
 
