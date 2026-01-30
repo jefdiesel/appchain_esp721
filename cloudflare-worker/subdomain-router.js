@@ -857,6 +857,15 @@ ${urls}
       const txHash = manifest[route];
 
       if (!txHash) {
+        // If home route missing, check if bonding curve token exists
+        if (route === 'home') {
+          const tokenAddr = await getBondingToken(name);
+          if (tokenAddr) {
+            return new Response(bondingTradePage(name, tokenAddr, baseDomain), {
+              headers: { 'Content-Type': 'text/html' },
+            });
+          }
+        }
         return new Response(notFoundPage(name, route), {
           status: 404,
           headers: { 'Content-Type': 'text/html' },
