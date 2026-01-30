@@ -3,11 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>appcoin — mint</title>
+<title>ChainHost — Token Launcher</title>
+<link rel="icon" href="https://chainhost.online/favicon.png">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--bg:#0a0a0f;--card:#12121a;--border:#1e1e2e;--text:#e0e0e0;--dim:#666;--accent:#c3ff00;--green:#00b894;--red:#d63031;--curve:#c3ff00}
-body{font-family:'SF Mono',Monaco,Consolas,monospace;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:2rem 1rem}
+body{font-family:'SF Mono',Monaco,Consolas,monospace;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:0 1rem 2rem}
+.nav{width:100%;max-width:480px;display:flex;align-items:center;justify-content:space-between;padding:1rem 0;margin-bottom:1.5rem;border-bottom:1px solid var(--border)}
+.nav a{text-decoration:none;color:var(--text)}.nav-logo{font-size:1.1rem;font-weight:700;display:flex;align-items:center;gap:.5rem}
+.nav-logo img{width:18px;height:18px}.nav-logo .ch{color:var(--accent)}
+.nav-links{display:flex;gap:.75rem;font-size:.75rem}
+.nav-links a{color:var(--dim);transition:.15s}.nav-links a:hover{color:var(--accent)}
+.nav-links .cta{background:var(--accent);color:#000;padding:.35rem .7rem;border-radius:6px;font-weight:600}.nav-links .cta:hover{opacity:.85}
 .c{max-width:480px;width:100%}
 h1{font-size:1.8rem;text-align:center;margin-bottom:.25rem}
 .sub{text-align:center;color:var(--dim);font-size:.8rem;margin-bottom:2rem}
@@ -54,21 +61,43 @@ canvas{width:100%;height:160px;display:block;margin:.5rem 0;border-radius:8px}
 .name-list li.used{opacity:.3;cursor:not-allowed;text-decoration:line-through}
 .names-loading{color:var(--dim);font-size:.8rem;text-align:center;padding:1rem}
 .no-names{color:var(--dim);font-size:.85rem;text-align:center;padding:1rem}
+.info-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1.25rem;margin-bottom:1rem;font-size:.8rem;color:var(--dim);line-height:1.7}
+.info-card h2{font-size:.85rem;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.75rem}
+.info-card ul{list-style:none;padding:0}.info-card li{padding:.2rem 0}.info-card li::before{content:"·";color:var(--accent);margin-right:.5rem;font-weight:700}
+.info-card b{color:var(--text)}.info-card a{color:var(--accent);text-decoration:none}
+.reg-link{display:block;text-align:center;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1rem;margin-bottom:1rem;color:var(--accent);text-decoration:none;font-size:.85rem;font-weight:600;transition:.15s}
+.reg-link:hover{border-color:var(--accent);background:#1a1a2e}
 </style>
 </head>
 <body>
 <div class="c">
-<h1>appcoin</h1>
-<p class="sub">bonding curve launcher</p>
+<nav class="nav"><a href="https://chainhost.online" class="nav-logo"><img src="https://chainhost.online/favicon.png" alt="">Chain<span class="ch">Host</span></a><div class="nav-links"><a href="https://chainhost.online/register">Register</a><a href="https://chainhost.online/marketplace">Market</a><a href="https://chainhost.online/upload" class="cta">Upload</a></div></nav>
+<h1 style="color:var(--accent)">Token Launcher</h1>
+<p class="sub">Launch an Ethereum bonding curve token on a gentler polynomial curve</p>
 <button class="bt cn" id="cb" onclick="cw()">Connect Wallet</button>
 <div class="wi" id="wf" style="display:none"><span class="ad" id="wa"></span></div>
+
+<div class="info-card">
+<h2>How it works</h2>
+<ul>
+<li>Token names are tied to <b>ethscription names</b> you own (SHA256 secured)</li>
+<li>Tokens trade on a <b>polynomial bonding curve</b> (x<sup>1.5</sup>) — gentler than exponential</li>
+<li>At <b>69% supply sold</b>, auto-migrates to <b>Uniswap V2</b> with LP burned forever</li>
+<li><b>0.69% fee</b> on sells during bonding phase</li>
+<li>Creator receives <b>0.069 ETH</b> at migration</li>
+<li>1% of supply minted to platform at migration (half sold, half kept)</li>
+<li>Your token lives at <b>name.chainhost.online</b> — instant trade page</li>
+</ul>
+</div>
+
+<a href="https://chainhost.online/register" class="reg-link">Don't have a name? Register one on Ethereum</a>
 
 <!-- CREATE TOKEN PANEL -->
 <div id="create-panel" class="cd">
 <h2>Launch Token</h2>
 <p class="names-loading" id="names-loading">Connect wallet to see your names</p>
 <ul class="name-list" id="name-list" style="display:none"></ul>
-<p class="no-names" id="no-names" style="display:none">No ethscription names found. <a href="https://ethscriptions.com" target="_blank" style="color:var(--accent)">Register one</a></p>
+<p class="no-names" id="no-names" style="display:none">No ethscription names found. <a href="https://chainhost.online/register" style="color:var(--accent)">Register a name</a> first.</p>
 <div id="create-options" style="display:none">
 <div class="ig"><label>Max Supply</label>
 <div class="ir"><input type="number" id="supply-input" placeholder="694200000" value="694200000" oninput="calcPreview()"></div></div>
@@ -111,7 +140,7 @@ Migrated! <a id="uni-link" href="#" target="_blank">Trade on Uniswap</a>
 <div class="ts" id="tx"></div></div>
 </div>
 
-<div class="ft">powered by smart contracts · on-chain forever</div>
+<div class="ft">powered by smart contracts · <a href="https://chainhost.online">chainhost.online</a></div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.1/ethers.umd.min.js"></script>
