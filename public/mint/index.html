@@ -268,11 +268,12 @@ async function cw() {
     factory = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, provider);
     factoryW = new ethers.Contract(FACTORY_ADDRESS, FACTORY_ABI, signer);
 
-    // Check URL for ?tick=
+    // Check URL for ?tick= — redirect to subdomain
     const params = new URLSearchParams(window.location.search);
     const tick = params.get("tick");
     if (tick) {
-        await loadToken(tick);
+        window.location.href = "https://" + tick.toLowerCase() + ".chainhost.online";
+        return;
     } else {
         await renderNames(addr);
     }
@@ -306,11 +307,12 @@ async function createToken() {
         await tx.wait();
 
         st.className = "ts ok";
-        st.textContent = "\u2713 $" + tick + " created!";
+        st.textContent = "\u2713 $" + tick + " created! Redirecting...";
 
-        // Update URL
-        history.pushState(null, "", "?tick=" + tick);
-        await loadToken(tick);
+        // Redirect to subdomain
+        setTimeout(() => {
+            window.location.href = "https://" + tick + ".chainhost.online";
+        }, 1500);
     } catch (e) {
         st.className = "ts er";
         st.textContent = "\u2717 " + (e.reason || e.message || "Failed");
