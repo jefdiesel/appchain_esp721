@@ -15,6 +15,7 @@ import puppeteer from '@cloudflare/puppeteer';
 const ETHSCRIPTIONS_API = 'https://api.ethscriptions.com/v2';
 const BASE_RPC = 'https://mainnet.base.org';
 const ETH_RPC = 'https://eth.llamarpc.com';
+const BONDING_FACTORY = '0x72B23955FFeEb864589D94C0661D6BCcEB44e49d';
 const SEPOLIA_RPC = 'https://rpc.sepolia.org';
 const GIT_REPO = 'https://github.com/jefdiesel/chainhost';
 const FAVICON = 'https://chainhost.online/favicon.png';
@@ -496,7 +497,8 @@ ${urls}
       }
       // Fallback: render branded SVG as PNG via Browser Rendering
       try {
-        const svg = defaultOgSvg(ogName);
+        const bondingAddr = await getBondingToken(ogName);
+        const svg = bondingAddr ? bondingOgSvg(ogName) : defaultOgSvg(ogName);
         const html = `<!DOCTYPE html><html><head><style>*{margin:0;padding:0}</style></head><body>${svg}</body></html>`;
         const browser = await puppeteer.launch(env.BROWSER);
         try {
@@ -520,7 +522,8 @@ ${urls}
         }
       } catch (e) {
         // If browser rendering fails, serve SVG as last resort
-        return new Response(defaultOgSvg(ogName), {
+        const fallbackBonding = await getBondingToken(ogName).catch(() => null);
+        return new Response(fallbackBonding ? bondingOgSvg(ogName) : defaultOgSvg(ogName), {
           headers: {
             'Content-Type': 'image/svg+xml',
             'Cache-Control': 'public, max-age=300',
@@ -786,6 +789,13 @@ ${urls}
       const nameData = await nameRes.json();
 
       if (!nameData?.result?.exists) {
+        // Name not claimed as ethscription, but check if bonding token exists
+        const tokenAddr = await getBondingToken(name);
+        if (tokenAddr) {
+          return new Response(bondingTradePage(name, tokenAddr, baseDomain), {
+            headers: { 'Content-Type': 'text/html' },
+          });
+        }
         return new Response(notClaimedPage(name, baseDomain), {
           status: 404,
           headers: { 'Content-Type': 'text/html' },
@@ -829,6 +839,13 @@ ${urls}
       const manifest = await findManifestCached(env, owner, name);
 
       if (!manifest) {
+        // Check if a bonding curve token exists for this name
+        const tokenAddr = await getBondingToken(name);
+        if (tokenAddr) {
+          return new Response(bondingTradePage(name, tokenAddr, baseDomain), {
+            headers: { 'Content-Type': 'text/html' },
+          });
+        }
         return new Response(noManifestPage(name, owner, baseDomain), {
           status: 200,
           headers: { 'Content-Type': 'text/html' },
@@ -920,6 +937,31 @@ function defaultOgSvg(name) {
   <text x="600" y="555" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="16" fill="#555">Powered by Ethscriptions</text>
   <!-- Top accent line -->
   <rect x="0" y="0" width="1200" height="4" fill="#C3FF00"/>
+</svg>`;
+}
+
+function bondingOgSvg(name) {
+  const esc = escapeXml(name);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#0a0a0f"/>
+  <rect x="0" y="0" width="1200" height="4" fill="#C3FF00"/>
+  <!-- Curve visualization -->
+  <path d="M100,480 Q300,470 500,400 T900,150" stroke="#C3FF00" stroke-width="3" fill="none" opacity="0.3"/>
+  <path d="M100,480 Q300,470 500,400 T900,150 L900,480 Z" fill="#C3FF00" opacity="0.05"/>
+  <!-- Token name -->
+  <text x="600" y="240" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="96" font-weight="bold" fill="#C3FF00">$${esc}</text>
+  <!-- Subtitle -->
+  <text x="600" y="310" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="32" fill="#888">bonding curve</text>
+  <!-- Info pills -->
+  <rect x="200" y="380" width="240" height="44" rx="22" fill="#1e1e2e"/>
+  <text x="320" y="408" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="18" fill="#e0e0e0">Uniswap V2 at 69%</text>
+  <rect x="480" y="380" width="240" height="44" rx="22" fill="#1e1e2e"/>
+  <text x="600" y="408" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="18" fill="#e0e0e0">LP burned forever</text>
+  <rect x="760" y="380" width="200" height="44" rx="22" fill="#1e1e2e"/>
+  <text x="860" y="408" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="18" fill="#e0e0e0">0.69% sell fee</text>
+  <!-- Footer -->
+  <text x="600" y="540" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="20" fill="#C3FF00">chainhost.online</text>
+  <text x="600" y="575" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="16" fill="#555">Use at your own risk · Unaudited</text>
 </svg>`;
 }
 
@@ -1927,5 +1969,213 @@ code{background:#000;border:1px solid #333;padding:2px 6px;border-radius:4px;fon
 
 <a href="/" class="back">← Back to site</a>
 </div>
+</body></html>`;
+}
+
+// ============ Bonding Curve Token Helpers ============
+
+async function getBondingToken(name) {
+  try {
+    const selector = '0x7ffd503c';
+    const nameHex = Array.from(new TextEncoder().encode(name)).map(b => b.toString(16).padStart(2, '0')).join('');
+    const nameLen = name.length;
+    const offset = '0000000000000000000000000000000000000000000000000000000000000020';
+    const length = nameLen.toString(16).padStart(64, '0');
+    const paddedName = nameHex.padEnd(64, '0');
+    const data = selector + offset + length + paddedName;
+    const res = await fetch(ETH_RPC, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_call', params: [{ to: BONDING_FACTORY, data }, 'latest'] }),
+    });
+    const result = await res.json();
+    if (result.result && result.result !== '0x' + '0'.repeat(64)) {
+      const addr = '0x' + result.result.slice(26);
+      if (addr !== '0x0000000000000000000000000000000000000000') return addr;
+    }
+  } catch (e) { console.error('getBondingToken error:', e); }
+  return null;
+}
+
+function bondingTradePage(name, tokenAddr, baseDomain) {
+  const esc = escapeXml(name);
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>$${esc} - bonding curve</title>
+<link rel="icon" href="${FAVICON}">
+<meta property="og:title" content="$${esc}">
+<meta property="og:description" content="Buy and sell $${esc} on a bonding curve. Migrates to Uniswap V2 at 69%. LP burned. Use at your own risk.">
+<meta property="og:url" content="https://${esc}.${baseDomain}">
+<meta property="og:image" content="https://${esc}.${baseDomain}/_og/${esc}.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://${esc}.${baseDomain}/_og/${esc}.png">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0a0a0f;--card:#12121a;--border:#1e1e2e;--text:#e0e0e0;--dim:#666;--accent:#c3ff00;--green:#00b894;--red:#d63031}
+body{font-family:'SF Mono',Monaco,Consolas,monospace;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:2rem 1rem}
+.c{max-width:480px;width:100%}
+h1{font-size:1.8rem;text-align:center;margin-bottom:.25rem;color:var(--accent)}
+.sub{text-align:center;color:var(--dim);font-size:.8rem;margin-bottom:2rem}
+.cd{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1.25rem;margin-bottom:1rem}
+.cd h2{font-size:.85rem;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.75rem}
+.sr{display:flex;justify-content:space-between;padding:.35rem 0;font-size:.85rem}
+.sl{color:var(--dim)}.sv{font-weight:600}
+.pb{font-size:1.6rem;font-weight:700;text-align:center;padding:.5rem 0}
+.pu{font-size:.8rem;color:var(--dim);font-weight:400}
+canvas{width:100%;height:160px;display:block;margin:.5rem 0;border-radius:8px}
+.tabs{display:flex;margin-bottom:1rem;border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+.tab{flex:1;padding:.6rem;text-align:center;cursor:pointer;font-size:.85rem;font-weight:600;background:var(--card);border:none;color:var(--dim);font-family:inherit;transition:.15s}
+.tab.a{background:var(--accent);color:#000}.tab:hover:not(.a){background:#1a1a2e}
+.ig{margin-bottom:1rem}
+.ig label{display:block;font-size:.75rem;color:var(--dim);margin-bottom:.4rem;text-transform:uppercase;letter-spacing:.04em}
+.ir{display:flex;gap:.5rem;align-items:center}
+.ir input{flex:1;background:#0d0d15;border:1px solid var(--border);border-radius:8px;padding:.65rem .85rem;color:var(--text);font-size:1rem;font-family:inherit;outline:none}
+.ir input:focus{border-color:var(--accent)}
+.mx{background:var(--border);border:none;border-radius:6px;padding:.45rem .75rem;color:var(--text);cursor:pointer;font-size:.75rem;font-family:inherit}
+.mx:hover{background:var(--accent);color:#000}
+.cp{background:#0d0d15;border-radius:8px;padding:.75rem;margin-bottom:1rem;font-size:.8rem}
+.cp .rw{display:flex;justify-content:space-between;padding:.2rem 0}
+.cp .tt{border-top:1px solid var(--border);margin-top:.3rem;padding-top:.4rem;font-weight:700}
+.bt{width:100%;padding:.75rem;border:none;border-radius:8px;font-size:1rem;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s}
+.bt:hover{opacity:.85;transform:translateY(-1px)}.bt:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.bb{background:var(--green);color:#000}.bs{background:var(--red);color:#fff}
+.cn{background:var(--accent);color:#000;margin-bottom:1rem}
+.wi{text-align:center;font-size:.8rem;color:var(--dim);margin-bottom:1rem}
+.wi .ad{color:var(--accent)}.wi .bl{color:var(--green)}
+.pg{height:6px;background:#1a1a2e;border-radius:3px;overflow:hidden;margin:.5rem 0}
+.pf{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent));border-radius:3px;transition:width .3s}
+.ts{text-align:center;padding:.75rem;border-radius:8px;font-size:.85rem;margin-top:.75rem;display:none}
+.ts.pe{display:block;background:#1a1a2e;color:var(--dim)}
+.ts.ok{display:block;background:#00b89422;color:var(--green)}
+.ts.er{display:block;background:#d6303122;color:var(--red)}
+.migrated-banner{background:var(--accent);color:#000;text-align:center;padding:1rem;border-radius:12px;margin-bottom:1rem;font-weight:700}
+.migrated-banner a{color:#000;text-decoration:underline}
+.ft{text-align:center;color:var(--dim);font-size:.7rem;margin-top:2rem}.ft a{color:var(--accent);text-decoration:none}
+.info{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1.25rem;margin-bottom:1rem;font-size:.8rem;color:var(--dim);line-height:1.6}
+.info h2{font-size:.85rem;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.75rem}
+.info ul{list-style:none;padding:0}.info li{padding:.25rem 0}.info li::before{content:"·";color:var(--accent);margin-right:.5rem;font-weight:700}
+.info .warn{color:var(--red);font-weight:600;margin-top:.75rem;padding-top:.5rem;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="c">
+<h1>$` + esc + `</h1>
+<p class="sub">bonding curve</p>
+<button class="bt cn" id="cb" onclick="cw()">Connect Wallet</button>
+<div class="wi" id="wf" style="display:none"><span class="ad" id="wa"></span></div>
+<div class="wi" id="token-bal-wrap" style="display:none"><span class="bl" id="wb">0</span> tokens</div>
+<div id="migrated-msg" class="migrated-banner" style="display:none">
+Migrated! <a id="uni-link" href="#" target="_blank">Trade on Uniswap</a>
+</div>
+<div class="cd"><h2>Price</h2>
+<div class="pb" id="sp">... <span class="pu">ETH</span></div>
+<div class="sr"><span class="sl">Supply</span><span class="sv"><span id="cs">0</span> / <span id="ms">0</span></span></div>
+<div class="pg"><div class="pf" id="sb" style="width:0%"></div></div>
+<div class="sr"><span class="sl">Reserve</span><span class="sv" id="rv">0 ETH</span></div>
+<div class="sr"><span class="sl">Curve</span><span class="sv">x<sup>1.5</sup></span></div></div>
+<div class="cd"><h2>Price Curve</h2><canvas id="cc" height="160"></canvas></div>
+<div class="info"><h2>How it works</h2><ul>
+<li>Migrates to <b style="color:var(--text)">Uniswap V2</b> at 69% supply sold</li>
+<li>0.69% fee on sells during bonding phase</li>
+<li>LP tokens are <b style="color:var(--text)">burned</b> at migration &mdash; no rug pulls</li>
+<li>Polynomial curve: price = basePrice &times; (supply/max)<sup>1.5</sup></li>
+</ul><p class="warn">Use at your own risk. DYOR. Unaudited contracts.</p></div>
+<div class="cd" id="trade-card">
+<div class="tabs"><button class="tab a" id="tb" onclick="sm('b')">Buy</button><button class="tab" id="ts2" onclick="sm('s')">Sell</button></div>
+<div class="ig"><label>Amount ($` + esc + `)</label>
+<div class="ir"><input type="number" id="am" placeholder="0" min="0" oninput="up()"><button class="mx" onclick="mx()">MAX</button></div></div>
+<div class="cp"><div class="rw"><span>Avg price</span><span id="ap">&mdash;</span></div>
+<div class="rw"><span>Slippage</span><span id="slp">&mdash;</span></div>
+<div class="rw tt"><span id="cl">Total cost</span><span id="tc">&mdash;</span></div></div>
+<button class="bt bb" id="ab" onclick="ex()" disabled>Enter amount</button>
+<div class="ts" id="tx"></div></div>
+<div class="ft">powered by smart contracts · <a href="https://chainhost.online/mint/">launch your own</a></div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.1/ethers.umd.min.js"><\/script>
+<script>
+const TOKEN_ADDRESS="${tokenAddr}";
+const TICK="${esc}";
+const TOKEN_ABI=[
+"function name() view returns (string)",
+"function totalSupply() view returns (uint256)",
+"function maxSupply() view returns (uint256)",
+"function basePrice() view returns (uint256)",
+"function balanceOf(address) view returns (uint256)",
+"function getPrice() view returns (uint256)",
+"function getBuyCost(uint256) view returns (uint256)",
+"function getSellProceeds(uint256) view returns (uint256)",
+"function migrated() view returns (bool)",
+"function buy(uint256 amount) payable",
+"function sell(uint256 amount, uint256 minEth)"
+];
+var md="b",provider=null,signer=null,token=null,tokenW=null;
+var userBal=0n,curSupply=0n,maxSupply=0n,basePrice=0n,isMigrated=false;
+function gp(s,M,B){return B*Math.pow(s/M,1.5)}
+async function cw(){
+if(!window.ethereum){alert("No wallet detected.");return}
+provider=new ethers.BrowserProvider(window.ethereum);
+signer=await provider.getSigner();
+var addr=await signer.getAddress();
+document.getElementById("cb").style.display="none";
+document.getElementById("wf").style.display="block";
+document.getElementById("wa").textContent=addr.slice(0,6)+"\\u2026"+addr.slice(-4);
+token=new ethers.Contract(TOKEN_ADDRESS,TOKEN_ABI,provider);
+tokenW=new ethers.Contract(TOKEN_ADDRESS,TOKEN_ABI,signer);
+document.getElementById("token-bal-wrap").style.display="block";
+await refresh();
+}
+async function refresh(){
+if(!token){var rp=new ethers.JsonRpcProvider("https://ethereum-rpc.publicnode.com");token=new ethers.Contract(TOKEN_ADDRESS,TOKEN_ABI,rp)}
+try{var r=await Promise.all([token.totalSupply(),token.getPrice(),token.maxSupply(),token.basePrice(),token.migrated()]);
+var bal=0n;if(signer)bal=await token.balanceOf(await signer.getAddress());
+curSupply=r[0];maxSupply=r[2];basePrice=r[3];userBal=bal;isMigrated=r[4];
+var sN=Number(ethers.formatEther(r[0])),mN=Number(ethers.formatEther(r[2])),pE=Number(ethers.formatEther(r[1]));
+document.getElementById("sp").innerHTML=pE.toFixed(10)+' <span class="pu">ETH</span>';
+document.getElementById("cs").textContent=Math.floor(sN).toLocaleString();
+document.getElementById("ms").textContent=Math.floor(mN).toLocaleString();
+document.getElementById("wb").textContent=Math.floor(Number(ethers.formatEther(bal))).toLocaleString();
+document.getElementById("sb").style.width=(sN/mN*100)+"%";
+try{var rv=await(provider||new ethers.JsonRpcProvider("https://ethereum-rpc.publicnode.com")).getBalance(TOKEN_ADDRESS);
+document.getElementById("rv").textContent=Number(ethers.formatEther(rv)).toFixed(6)+" ETH"}catch(e){}
+if(isMigrated){document.getElementById("migrated-msg").style.display="block";document.getElementById("trade-card").style.display="none";
+document.getElementById("uni-link").href="https://app.uniswap.org/#/swap?outputCurrency="+TOKEN_ADDRESS}
+dc(sN,mN,Number(ethers.formatEther(r[3])));
+}catch(e){console.error("refresh",e)}
+}
+function sm(m){md=m;document.getElementById("tb").className=m==="b"?"tab a":"tab";document.getElementById("ts2").className=m==="s"?"tab a":"tab";
+document.getElementById("ab").className=m==="b"?"bt bb":"bt bs";document.getElementById("cl").textContent=m==="b"?"Total cost":"You receive";up()}
+function mx(){if(md==="s"){document.getElementById("am").value=Math.floor(Number(ethers.formatEther(userBal)))}
+else{var mN=Number(ethers.formatEther(maxSupply)),cN=Number(ethers.formatEther(curSupply));document.getElementById("am").value=Math.floor(Math.max(0,mN*0.69-cN))}up()}
+async function up(){var a=parseFloat(document.getElementById("am").value)||0,b=document.getElementById("ab");
+if(a<=0||!token){document.getElementById("ap").textContent="\\u2014";document.getElementById("slp").textContent="\\u2014";document.getElementById("tc").textContent="\\u2014";b.disabled=true;b.textContent="Enter amount";return}
+try{var w=ethers.parseEther(String(a));
+if(md==="b"){var c=await token.getBuyCost(w),cE=Number(ethers.formatEther(c));document.getElementById("ap").textContent=(cE/a).toFixed(10)+" ETH";
+document.getElementById("slp").textContent="~1%";document.getElementById("tc").textContent=cE.toFixed(8)+" ETH";b.disabled=!signer;b.textContent=signer?"Buy "+a.toLocaleString()+" $"+TICK:"Connect wallet"}
+else{var p=await token.getSellProceeds(w),pE=Number(ethers.formatEther(p));document.getElementById("ap").textContent=(pE/a).toFixed(10)+" ETH";
+document.getElementById("slp").textContent="~1%";document.getElementById("tc").textContent=pE.toFixed(8)+" ETH";b.disabled=!signer;b.textContent=signer?"Sell "+a.toLocaleString()+" $"+TICK:"Connect wallet"}
+}catch(e){b.disabled=true;b.textContent="Invalid amount"}}
+async function ex(){var a=parseFloat(document.getElementById("am").value);if(!a||!tokenW)return;
+var st=document.getElementById("tx");st.className="ts pe";st.style.display="block";st.textContent="Waiting for wallet...";
+try{var w=ethers.parseEther(String(a)),tx;
+if(md==="b"){var c=await token.getBuyCost(w);tx=await tokenW.buy(w,{value:c*101n/100n})}
+else{var p=await token.getSellProceeds(w);tx=await tokenW.sell(w,p*99n/100n)}
+st.className="ts pe";st.textContent="Confirming...";await tx.wait();
+st.className="ts ok";st.innerHTML="\\u2713 Done! <a href='https://etherscan.io/tx/"+tx.hash+"' target='_blank' style='color:var(--green)'>"+tx.hash.slice(0,18)+"\\u2026</a>";
+document.getElementById("am").value="";await refresh();up();
+}catch(e){st.className="ts er";st.textContent="\\u2717 "+(e.reason||e.message||"Rejected")}}
+function dc(sN,mN,bp){sN=sN||0;mN=mN||1;bp=bp||1;var cv=document.getElementById("cc"),cx=cv.getContext("2d");
+var d=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;cv.width=W*d;cv.height=H*d;cx.scale(d,d);cx.clearRect(0,0,W,H);
+cx.strokeStyle="#1e1e2e";cx.lineWidth=1;for(var i=0;i<=4;i++){var y=H/4*i;cx.beginPath();cx.moveTo(0,y);cx.lineTo(W,y);cx.stroke()}
+cx.beginPath();cx.strokeStyle="#c3ff00";cx.lineWidth=2;var mP=gp(mN,mN,bp);
+for(var i=0;i<=200;i++){var s=mN/200*i,p=gp(s,mN,bp),x=i/200*W,y2=H-(p/mP)*(H-10)-5;i===0?cx.moveTo(x,y2):cx.lineTo(x,y2)}cx.stroke();
+var sp=sN/mN;cx.beginPath();cx.fillStyle="#c3ff0022";
+for(var i=0;i<=Math.floor(sp*200);i++){var s=mN/200*i,p=gp(s,mN,bp),x=i/200*W,y2=H-(p/mP)*(H-10)-5;i===0?(cx.moveTo(x,H),cx.lineTo(x,y2)):cx.lineTo(x,y2)}
+cx.lineTo(sp*W,H);cx.closePath();cx.fill();
+if(sN>0){var cx2=sp*W,cy=H-(gp(sN,mN,bp)/mP)*(H-10)-5;cx.beginPath();cx.arc(cx2,cy,5,0,Math.PI*2);cx.fillStyle="#c3ff00";cx.fill();cx.strokeStyle="#fff";cx.lineWidth=2;cx.stroke()}}
+refresh();
+<\/script>
 </body></html>`;
 }
