@@ -166,6 +166,9 @@ export default function MarketplacePage() {
             <Link href="/marketplace" className="text-[#C3FF00]">
               Marketplace
             </Link>
+            <Link href="/mint/" className="hover:text-[#C3FF00] transition">
+              Mint
+            </Link>
             <Link href="/register" className="hover:text-[#C3FF00] transition">
               Register
             </Link>

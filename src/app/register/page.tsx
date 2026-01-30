@@ -131,9 +131,14 @@ export default function RegisterPage() {
             <img src="/favicon.png" alt="" className="w-5 h-5" />
             <span><span className="text-white">Chain</span><span className="text-[#C3FF00]">Host</span></span>
           </Link>
-          <Link href="/upload" className="text-sm text-gray-400 hover:text-white">
-            Upload Site
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/mint/" className="text-sm text-gray-400 hover:text-white">
+              Mint
+            </Link>
+            <Link href="/upload" className="text-sm text-gray-400 hover:text-white">
+              Upload Site
+            </Link>
+          </div>
         </div>
       </nav>
 

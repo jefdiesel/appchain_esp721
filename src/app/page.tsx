@@ -19,6 +19,12 @@ export default function Home() {
               Marketplace
             </Link>
             <Link
+              href="/mint/"
+              className="px-4 py-2 text-sm hover:text-[#C3FF00] transition"
+            >
+              Mint
+            </Link>
+            <Link
               href="/register"
               className="px-4 py-2 text-sm hover:text-[#C3FF00] transition"
             >

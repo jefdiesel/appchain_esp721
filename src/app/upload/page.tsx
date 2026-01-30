@@ -460,12 +460,17 @@ function UploadContent() {
             <img src="/favicon.png" alt="" className="w-5 h-5" />
             <span><span className="text-white">Chain</span><span className="text-[#C3FF00]">Host</span></span>
           </Link>
-          <Link
-            href="/register"
-            className="text-sm text-gray-400 hover:text-white"
-          >
-            Register Name
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/mint/" className="text-sm text-gray-400 hover:text-white">
+              Mint
+            </Link>
+            <Link
+              href="/register"
+              className="text-sm text-gray-400 hover:text-white"
+            >
+              Register Name
+            </Link>
+          </div>
         </div>
       </nav>
 

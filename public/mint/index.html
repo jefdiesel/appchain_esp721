@@ -9,12 +9,13 @@
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--bg:#0a0a0f;--card:#12121a;--border:#1e1e2e;--text:#e0e0e0;--dim:#666;--accent:#c3ff00;--green:#00b894;--red:#d63031;--curve:#c3ff00}
 body{font-family:'SF Mono',Monaco,Consolas,monospace;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:0 1rem 2rem}
-.nav{width:100%;max-width:480px;display:flex;align-items:center;justify-content:space-between;padding:1rem 0;margin-bottom:1.5rem;border-bottom:1px solid var(--border)}
-.nav a{text-decoration:none;color:var(--text)}.nav-logo{font-size:1.1rem;font-weight:700;display:flex;align-items:center;gap:.5rem}
-.nav-logo img{width:18px;height:18px}.nav-logo .ch{color:var(--accent)}
-.nav-links{display:flex;gap:.75rem;font-size:.75rem}
-.nav-links a{color:var(--dim);transition:.15s}.nav-links a:hover{color:var(--accent)}
-.nav-links .cta{background:var(--accent);color:#000;padding:.35rem .7rem;border-radius:6px;font-weight:600}.nav-links .cta:hover{opacity:.85}
+.nav{width:100%;border-bottom:1px solid #27272a;padding:1rem 1.5rem;margin:0 -1rem 1.5rem}
+.nav-inner{max-width:480px;margin:0 auto;display:flex;align-items:center;justify-content:space-between}
+.nav a{text-decoration:none}.nav-logo{font-size:1.25rem;font-weight:700;display:flex;align-items:center;gap:.5rem;color:#fff}
+.nav-logo img{width:20px;height:20px}.nav-logo .ch{color:#C3FF00}
+.nav-links{display:flex;align-items:center;gap:1rem;font-size:.875rem}
+.nav-links a{color:#9ca3af;transition:.15s}.nav-links a:hover{color:#C3FF00}
+.nav-links .cta{background:#C3FF00;color:#000;padding:.5rem 1rem;border-radius:8px;font-weight:600}.nav-links .cta:hover{background:#d4ff4d}
 .c{max-width:480px;width:100%}
 h1{font-size:1.8rem;text-align:center;margin-bottom:.25rem}
 .sub{text-align:center;color:var(--dim);font-size:.8rem;margin-bottom:2rem}
@@ -71,7 +72,7 @@ canvas{width:100%;height:160px;display:block;margin:.5rem 0;border-radius:8px}
 </head>
 <body>
 <div class="c">
-<nav class="nav"><a href="https://chainhost.online" class="nav-logo"><img src="https://chainhost.online/favicon.png" alt="">Chain<span class="ch">Host</span></a><div class="nav-links"><a href="https://chainhost.online/register">Register</a><a href="https://chainhost.online/marketplace">Market</a><a href="https://chainhost.online/upload" class="cta">Upload</a></div></nav>
+<nav class="nav"><div class="nav-inner"><a href="/" class="nav-logo"><img src="/favicon.png" alt=""><span>Chain<span class="ch">Host</span></span></a><div class="nav-links"><a href="/marketplace">Marketplace</a><a href="/register">Register Name</a><a href="/upload" class="cta">Upload Site</a></div></div></nav>
 <h1 style="color:var(--accent)">Token Launcher</h1>
 <p class="sub">Launch an Ethereum bonding curve token on a gentler polynomial curve</p>
 <button class="bt cn" id="cb" onclick="cw()">Connect Wallet</button>
