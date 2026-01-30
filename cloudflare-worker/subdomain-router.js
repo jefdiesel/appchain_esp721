@@ -2034,7 +2034,10 @@ h1{font-size:1.8rem;text-align:center;margin-bottom:.25rem;color:var(--accent)}
 .sl{color:var(--dim)}.sv{font-weight:600}
 .pb{font-size:1.6rem;font-weight:700;text-align:center;padding:.5rem 0}
 .pu{font-size:.8rem;color:var(--dim);font-weight:400}
-canvas{width:100%;height:160px;display:block;margin:.5rem 0;border-radius:8px}
+canvas{width:100%;height:200px;display:block;margin:.5rem 0;border-radius:8px}
+.chtabs{display:flex;gap:.5rem;margin-bottom:.5rem}.chtab{background:none;border:1px solid var(--border);border-radius:6px;padding:.3rem .7rem;color:var(--dim);cursor:pointer;font-size:.75rem;font-family:inherit}.chtab.a{background:var(--accent);color:#000;border-color:var(--accent)}
+.tf{display:flex;gap:.35rem;margin-bottom:.5rem}.tfb{background:none;border:1px solid var(--border);border-radius:4px;padding:.2rem .5rem;color:var(--dim);cursor:pointer;font-size:.7rem;font-family:inherit}.tfb.a{color:var(--accent);border-color:var(--accent)}
+.ch-loading{text-align:center;color:var(--dim);font-size:.75rem;padding:2rem 0}
 .tabs{display:flex;margin-bottom:1rem;border-radius:8px;overflow:hidden;border:1px solid var(--border)}
 .tab{flex:1;padding:.6rem;text-align:center;cursor:pointer;font-size:.85rem;font-weight:600;background:var(--card);border:none;color:var(--dim);font-family:inherit;transition:.15s}
 .tab.a{background:var(--accent);color:#000}.tab:hover:not(.a){background:#1a1a2e}
@@ -2085,7 +2088,9 @@ Migrated! <a id="uni-link" href="#" target="_blank">Trade on Uniswap</a>
 <div class="pg"><div class="pf" id="sb" style="width:0%"></div></div>
 <div class="sr"><span class="sl">Reserve</span><span class="sv" id="rv">0 ETH</span></div>
 <div class="sr"><span class="sl">Curve</span><span class="sv">x<sup>1.5</sup></span></div></div>
-<div class="cd"><h2>Price Curve</h2><canvas id="cc" height="160"></canvas></div>
+<div class="cd"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem"><h2 style="margin:0">Chart</h2><div class="chtabs"><button class="chtab a" id="cht-curve" onclick="switchChart('curve')">Curve</button><button class="chtab" id="cht-candle" onclick="switchChart('candle')">Candles</button></div></div>
+<div id="curve-wrap"><canvas id="cc" height="200"></canvas></div>
+<div id="candle-wrap" style="display:none"><div class="tf"><button class="tfb a" onclick="setTf(300)">5m</button><button class="tfb" onclick="setTf(3600)">1h</button><button class="tfb" onclick="setTf(14400)">4h</button><button class="tfb" onclick="setTf(86400)">1d</button></div><canvas id="candle-cv" height="200"></canvas><div class="ch-loading" id="candle-load">Loading trades...</div></div></div>
 <div class="info"><h2>How it works</h2><ul>
 <li>Migrates to <b style="color:var(--text)">Uniswap V2</b> at 69% supply sold</li>
 <li>0.69% fee on sells during bonding phase</li>
@@ -2184,6 +2189,74 @@ var sp=sN/mN;cx.beginPath();cx.fillStyle="#c3ff0022";
 for(var i=0;i<=Math.floor(sp*200);i++){var s=mN/200*i,p=gp(s,mN,bp),x=i/200*W,y2=H-(p/mP)*(H-10)-5;i===0?(cx.moveTo(x,H),cx.lineTo(x,y2)):cx.lineTo(x,y2)}
 cx.lineTo(sp*W,H);cx.closePath();cx.fill();
 if(sN>0){var cx2=sp*W,cy=H-(gp(sN,mN,bp)/mP)*(H-10)-5;cx.beginPath();cx.arc(cx2,cy,5,0,Math.PI*2);cx.fillStyle="#c3ff00";cx.fill();cx.strokeStyle="#fff";cx.lineWidth=2;cx.stroke()}}
+var chartMode="curve",candleTf=3600,tradeData=null;
+function switchChart(m){chartMode=m;document.getElementById("cht-curve").className=m==="curve"?"chtab a":"chtab";document.getElementById("cht-candle").className=m==="candle"?"chtab a":"chtab";document.getElementById("curve-wrap").style.display=m==="curve"?"block":"none";document.getElementById("candle-wrap").style.display=m==="candle"?"block":"none";if(m==="candle"&&!tradeData)loadTrades()}
+function setTf(t){candleTf=t;document.querySelectorAll(".tfb").forEach(function(b){b.className=parseInt(b.textContent==="5m"?300:b.textContent==="1h"?3600:b.textContent==="4h"?14400:86400)===t?"tfb a":"tfb"});if(tradeData)drawCandles()}
+async function loadTrades(){
+var el=document.getElementById("candle-load");el.style.display="block";el.textContent="Loading trades...";
+try{
+var rpc=provider||new ethers.JsonRpcProvider("https://ethereum-rpc.publicnode.com");
+var tc=new ethers.Contract(TOKEN_ADDRESS,["event Transfer(address indexed from,address indexed to,uint256 value)"],rpc);
+var bn=await rpc.getBlockNumber();
+var fromBlock=Math.max(0,bn-200000);
+var logs=await tc.queryFilter("Transfer",fromBlock);
+if(!logs.length){el.textContent="No trades yet";return}
+var blocks={};var trades=[];
+var batchSize=50;
+for(var i=0;i<logs.length;i+=batchSize){
+var batch=logs.slice(i,i+batchSize);
+var needed=batch.filter(function(l){return!blocks[l.blockNumber]}).map(function(l){return l.blockNumber});
+var unique=[...new Set(needed)];
+var results=await Promise.all(unique.map(function(b){return rpc.getBlock(b)}));
+results.forEach(function(b){if(b)blocks[b.number]=b.timestamp})
+}
+var ZERO="0x0000000000000000000000000000000000000000";
+var runSupply=0;
+for(var i=0;i<logs.length;i++){
+var l=logs[i];var from=l.args[0],to=l.args[1],val=Number(ethers.formatEther(l.args[2]));
+var isBuy=from===ZERO,isSell=to===ZERO;
+if(isBuy)runSupply+=val;
+else if(isSell)runSupply-=val;
+else continue;
+if(!maxSupply||!basePrice)continue;
+var mN2=Number(ethers.formatEther(maxSupply)),bp2=Number(ethers.formatEther(basePrice));
+var price=gp(Math.max(0,runSupply),mN2,bp2);
+trades.push({t:blocks[l.blockNumber]||0,p:price,buy:isBuy,vol:val})
+}
+tradeData=trades;
+el.style.display="none";
+drawCandles()
+}catch(e){console.error("loadTrades",e);el.textContent="Failed to load trades"}}
+function drawCandles(){
+if(!tradeData||!tradeData.length)return;
+var tf=candleTf,trades=tradeData;
+var buckets={};
+trades.forEach(function(tr){var k=Math.floor(tr.t/tf)*tf;if(!buckets[k])buckets[k]={o:tr.p,h:tr.p,l:tr.p,c:tr.p,v:tr.vol,buy:tr.buy};else{var b=buckets[k];b.h=Math.max(b.h,tr.p);b.l=Math.min(b.l,tr.p);b.c=tr.p;b.v+=tr.vol}});
+var keys=Object.keys(buckets).map(Number).sort();
+if(!keys.length)return;
+var minT=keys[0],maxT=keys[keys.length-1];
+var filled=[];var prevC=buckets[keys[0]].o;
+for(var t=minT;t<=maxT;t+=tf){if(buckets[t])filled.push({t:t,o:buckets[t].o,h:buckets[t].h,l:buckets[t].l,c:buckets[t].c});else filled.push({t:t,o:prevC,h:prevC,l:prevC,c:prevC});prevC=filled[filled.length-1].c}
+if(filled.length>60)filled=filled.slice(-60);
+var cv=document.getElementById("candle-cv"),cx=cv.getContext("2d");
+var d=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;cv.width=W*d;cv.height=H*d;cx.scale(d,d);cx.clearRect(0,0,W,H);
+var allP=[];filled.forEach(function(c){allP.push(c.h,c.l)});
+var minP=Math.min.apply(null,allP),maxP=Math.max.apply(null,allP);
+var pad=(maxP-minP)*0.1||1e-12;minP-=pad;maxP+=pad;
+var cw2=Math.max(2,(W/filled.length)*0.7),gap=(W-cw2*filled.length)/(filled.length+1);
+cx.strokeStyle="#1e1e2e";cx.lineWidth=1;
+for(var i=0;i<=4;i++){var y=H/4*i;cx.beginPath();cx.moveTo(0,y);cx.lineTo(W,y);cx.stroke()}
+function yp(p){return H-(p-minP)/(maxP-minP)*(H-20)-10}
+for(var i=0;i<filled.length;i++){
+var c=filled[i],x=gap+(cw2+gap)*i,green=c.c>=c.o;
+cx.strokeStyle=green?"#00b894":"#d63031";cx.fillStyle=green?"#00b894":"#d63031";
+var xc=x+cw2/2;cx.beginPath();cx.moveTo(xc,yp(c.h));cx.lineTo(xc,yp(c.l));cx.stroke();
+var top=yp(Math.max(c.o,c.c)),bot=yp(Math.min(c.o,c.c)),bh=Math.max(1,bot-top);
+if(green){cx.strokeRect(x,top,cw2,bh)}else{cx.fillRect(x,top,cw2,bh)}
+}
+cx.fillStyle="#666";cx.font="10px monospace";cx.textAlign="right";
+for(var i=0;i<=4;i++){var p2=minP+(maxP-minP)*(4-i)/4;cx.fillText(p2.toExponential(2),W-4,H/4*i+12)}
+}
 refresh();
 <\/script>
 </body></html>`;
