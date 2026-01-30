@@ -960,7 +960,8 @@ function bondingOgSvg(name) {
   <!-- Token name -->
   <text x="600" y="240" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="96" font-weight="bold" fill="#C3FF00">$${esc}</text>
   <!-- Subtitle -->
-  <text x="600" y="310" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="32" fill="#888">Polynomial curve</text>
+  <text x="600" y="305" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="22" fill="#888">Ethereum bonding token on a gentler polynomial curve</text>
+  <text x="600" y="340" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="18" fill="#555">Token names tied to ethscriptions — SHA256 secured</text>
   <!-- Info pills -->
   <rect x="200" y="380" width="240" height="44" rx="22" fill="#1e1e2e"/>
   <text x="320" y="408" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="18" fill="#e0e0e0">Uniswap V2 at 69%</text>
