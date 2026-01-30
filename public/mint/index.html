@@ -117,7 +117,7 @@ Migrated! <a id="uni-link" href="#" target="_blank">Trade on Uniswap</a>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.1/ethers.umd.min.js"></script>
 <script>
 // ── Config ──────────────────────────────────────────────────────────
-const FACTORY_ADDRESS = "0x09d9cb859B6f845F720B27b38457300242B59414";
+const FACTORY_ADDRESS = "0x72B23955FFeEb864589D94C0661D6BCcEB44e49d";
 const FACTORY_ABI = [
     "function createToken(string _tick, uint256 _maxSupply, uint256 _basePrice) returns (address)",
     "function tokenByTick(string) view returns (address)",
@@ -134,7 +134,7 @@ const TOKEN_ABI = [
     "function getBuyCost(uint256) view returns (uint256)",
     "function getSellProceeds(uint256) view returns (uint256)",
     "function migrated() view returns (bool)",
-    "function buy(uint256 minTokens) payable",
+    "function buy(uint256 amount) payable",
     "function sell(uint256 amount, uint256 minEth)",
     "function approve(address spender, uint256 value) returns (bool)"
 ];
@@ -455,8 +455,7 @@ async function ex() {
         if (md === "b") {
             const cost = await token.getBuyCost(amountWei);
             const costWithSlippage = cost * 101n / 100n;
-            const minTokens = amountWei * 99n / 100n;
-            tx = await tokenW.buy(minTokens, { value: costWithSlippage });
+            tx = await tokenW.buy(amountWei, { value: costWithSlippage });
         } else {
             const proceeds = await token.getSellProceeds(amountWei);
             const minEth = proceeds * 99n / 100n;
