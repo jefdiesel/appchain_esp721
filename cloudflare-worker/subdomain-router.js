@@ -2090,7 +2090,7 @@ Migrated! <a id="uni-link" href="#" target="_blank">Trade on Uniswap</a>
 <div class="sr"><span class="sl">Curve</span><span class="sv">x<sup>1.5</sup></span></div></div>
 <div class="cd"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem"><h2 style="margin:0">Chart</h2><div class="chtabs"><button class="chtab" id="cht-curve" onclick="switchChart('curve')">Curve</button><button class="chtab a" id="cht-candle" onclick="switchChart('candle')">Candles</button></div></div>
 <div id="curve-wrap" style="display:none"><canvas id="cc" height="200"></canvas></div>
-<div id="candle-wrap"><div class="tf"><button class="tfb" onclick="setTf(300)">5m</button><button class="tfb a" onclick="setTf(3600)">1h</button><button class="tfb" onclick="setTf(14400)">4h</button><button class="tfb" onclick="setTf(86400)">1d</button></div><canvas id="candle-cv" height="200"></canvas><div class="ch-loading" id="candle-load">Loading trades...</div></div></div>
+<div id="candle-wrap"><div class="tf"><button class="tfb" onclick="setTf(300)">5m</button><button class="tfb a" onclick="setTf(3600)">1h</button><button class="tfb" onclick="setTf(14400)">4h</button><button class="tfb" onclick="setTf(86400)">1d</button></div><div id="candle-tv" style="height:260px"></div><div class="ch-loading" id="candle-load">Loading trades...</div></div></div>
 <div class="info"><h2>How it works</h2><ul>
 <li>Migrates to <b style="color:var(--text)">Uniswap V2</b> at 69% supply sold</li>
 <li>0.69% fee on sells during bonding phase</li>
@@ -2109,6 +2109,7 @@ Migrated! <a id="uni-link" href="#" target="_blank">Trade on Uniswap</a>
 <div class="ft">powered by smart contracts · <a href="https://chainhost.online/mint/">launch your own</a></div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.1/ethers.umd.min.js"><\/script>
+<script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"><\/script>
 <script>
 const TOKEN_ADDRESS="${tokenAddr}";
 const TICK="${esc}";
@@ -2190,8 +2191,8 @@ var sp=sN/mN;cx.beginPath();cx.fillStyle="#c3ff0022";
 for(var i=0;i<=Math.floor(sp*200);i++){var s=mN/200*i,p=gp(s,mN,bp),x=i/200*W,y2=H-(p/mP)*(H-10)-5;i===0?(cx.moveTo(x,H),cx.lineTo(x,y2)):cx.lineTo(x,y2)}
 cx.lineTo(sp*W,H);cx.closePath();cx.fill();
 if(sN>0){var cx2=sp*W,cy=H-(gp(sN,mN,bp)/mP)*(H-10)-5;cx.beginPath();cx.arc(cx2,cy,5,0,Math.PI*2);cx.fillStyle="#c3ff00";cx.fill();cx.strokeStyle="#fff";cx.lineWidth=2;cx.stroke()}}
-var chartMode="candle",candleTf=3600,tradeData=null;
-function switchChart(m){chartMode=m;document.getElementById("cht-curve").className=m==="curve"?"chtab a":"chtab";document.getElementById("cht-candle").className=m==="candle"?"chtab a":"chtab";document.getElementById("curve-wrap").style.display=m==="curve"?"block":"none";document.getElementById("candle-wrap").style.display=m==="candle"?"block":"none";if(m==="candle"&&!tradeData)loadTrades()}
+var chartMode="candle",candleTf=3600,tradeData=null,tvChart=null,tvSeries=null;
+function switchChart(m){chartMode=m;document.getElementById("cht-curve").className=m==="curve"?"chtab a":"chtab";document.getElementById("cht-candle").className=m==="candle"?"chtab a":"chtab";document.getElementById("curve-wrap").style.display=m==="curve"?"block":"none";document.getElementById("candle-wrap").style.display=m==="candle"?"block":"none";if(m==="candle"){if(!tradeData)loadTrades();if(tvChart)tvChart.resize(document.getElementById("candle-tv").clientWidth,260)}}
 function setTf(t){candleTf=t;document.querySelectorAll(".tfb").forEach(function(b){var m={"5m":300,"1h":3600,"4h":14400,"1d":86400};b.className=(m[b.textContent]||0)===t?"tfb a":"tfb"});if(tradeData)drawCandles()}
 async function loadTrades(){
 var el=document.getElementById("candle-load");el.style.display="block";el.textContent="Loading trades...";
@@ -2237,31 +2238,23 @@ function drawCandles(){
 if(!tradeData||!tradeData.length)return;
 var tf=candleTf,trades=tradeData;
 var buckets={};
-trades.forEach(function(tr){var k=Math.floor(tr.t/tf)*tf;if(!buckets[k])buckets[k]={o:tr.p,h:tr.p,l:tr.p,c:tr.p,v:tr.vol,buy:tr.buy};else{var b=buckets[k];b.h=Math.max(b.h,tr.p);b.l=Math.min(b.l,tr.p);b.c=tr.p;b.v+=tr.vol}});
+trades.forEach(function(tr){var k=Math.floor(tr.t/tf)*tf;if(!buckets[k])buckets[k]={o:tr.p,h:tr.p,l:tr.p,c:tr.p};else{var b=buckets[k];b.h=Math.max(b.h,tr.p);b.l=Math.min(b.l,tr.p);b.c=tr.p}});
 var keys=Object.keys(buckets).map(Number).sort();
 if(!keys.length)return;
 var minT=keys[0],maxT=keys[keys.length-1];
 var filled=[];var prevC=buckets[keys[0]].o;
-for(var t=minT;t<=maxT;t+=tf){if(buckets[t])filled.push({t:t,o:buckets[t].o,h:buckets[t].h,l:buckets[t].l,c:buckets[t].c});else filled.push({t:t,o:prevC,h:prevC,l:prevC,c:prevC});prevC=filled[filled.length-1].c}
-if(filled.length>60)filled=filled.slice(-60);
-var cv=document.getElementById("candle-cv"),cx=cv.getContext("2d");
-var d=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;cv.width=W*d;cv.height=H*d;cx.scale(d,d);cx.clearRect(0,0,W,H);
-var allP=[];filled.forEach(function(c){allP.push(c.h,c.l)});
-var minP=Math.min.apply(null,allP),maxP=Math.max.apply(null,allP);
-var pad=(maxP-minP)*0.1||1e-12;minP-=pad;maxP+=pad;
-var cw2=Math.min(12,Math.max(2,(W/filled.length)*0.6)),gap=(W-cw2*filled.length)/(filled.length+1);
-cx.strokeStyle="#1e1e2e";cx.lineWidth=1;
-for(var i=0;i<=4;i++){var y=H/4*i;cx.beginPath();cx.moveTo(0,y);cx.lineTo(W,y);cx.stroke()}
-function yp(p){return H-(p-minP)/(maxP-minP)*(H-20)-10}
-for(var i=0;i<filled.length;i++){
-var c=filled[i],x=gap+(cw2+gap)*i,green=c.c>=c.o;
-var col=green?"#00b894":"#d63031";cx.strokeStyle=col;cx.fillStyle=col;
-var xc=x+cw2/2;cx.lineWidth=1;cx.beginPath();cx.moveTo(xc,yp(c.h));cx.lineTo(xc,yp(c.l));cx.stroke();
-var top=yp(Math.max(c.o,c.c)),bot=yp(Math.min(c.o,c.c)),bh=bot-top;
-if(bh<1.5){cx.fillRect(x,top-0.5,cw2,1.5)}else if(green){cx.strokeRect(x,top,cw2,bh)}else{cx.fillRect(x,top,cw2,bh)}
-}
-cx.fillStyle="#666";cx.font="10px monospace";cx.textAlign="right";
-for(var i=0;i<=4;i++){var p2=minP+(maxP-minP)*(4-i)/4;cx.fillText(p2.toExponential(2),W-4,H/4*i+12)}
+for(var t=minT;t<=maxT;t+=tf){if(buckets[t])filled.push({time:t,open:buckets[t].o,high:buckets[t].h,low:buckets[t].l,close:buckets[t].c});else filled.push({time:t,open:prevC,high:prevC,low:prevC,close:prevC});prevC=filled[filled.length-1].close}
+var el=document.getElementById("candle-tv");
+if(tvChart){tvChart.remove();tvChart=null}
+tvChart=LightweightCharts.createChart(el,{width:el.clientWidth,height:260,
+layout:{background:{type:"solid",color:"#12121a"},textColor:"#666",fontFamily:"'SF Mono',Monaco,Consolas,monospace",fontSize:11},
+grid:{vertLines:{color:"#1e1e2e"},horzLines:{color:"#1e1e2e"}},
+crosshair:{mode:0},
+timeScale:{borderColor:"#1e1e2e",timeVisible:true,secondsVisible:false},
+rightPriceScale:{borderColor:"#1e1e2e"}});
+tvSeries=tvChart.addCandlestickSeries({upColor:"#00b894",downColor:"#d63031",borderUpColor:"#00b894",borderDownColor:"#d63031",wickUpColor:"#00b894",wickDownColor:"#d63031"});
+tvSeries.setData(filled);
+tvChart.timeScale().fitContent()
 }
 refresh();
 <\/script>
