@@ -13,10 +13,28 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Chainhost - Host Sites on Ethereum",
-  description: "Build and host websites permanently on Ethereum calldata",
+  title: {
+    default: "Chainhost - Host Sites on Ethereum",
+    template: "%s | Chainhost",
+  },
+  description: "Build and host websites permanently on Ethereum calldata. No servers, no renewals, no takedowns.",
   icons: {
     icon: "/favicon.png",
+  },
+  metadataBase: new URL("https://chainhost.online"),
+  openGraph: {
+    type: "website",
+    siteName: "Chainhost",
+    title: "Chainhost - Host Sites on Ethereum",
+    description: "Build and host websites permanently on Ethereum calldata. No servers, no renewals, no takedowns.",
+    url: "https://chainhost.online",
+    images: [{ url: "/favicon.png", width: 256, height: 256 }],
+  },
+  twitter: {
+    card: "summary",
+    title: "Chainhost - Host Sites on Ethereum",
+    description: "Build and host websites permanently on Ethereum calldata. No servers, no renewals, no takedowns.",
+    images: ["/favicon.png"],
   },
 };
 

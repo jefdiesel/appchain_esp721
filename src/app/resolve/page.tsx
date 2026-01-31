@@ -6,6 +6,7 @@ import Link from "next/link";
 interface Ethscription {
   transaction_hash: string;
   content_uri?: string;
+  mimetype?: string;
 }
 
 export default function ResolvePage() {
@@ -158,7 +159,48 @@ export default function ResolvePage() {
                 <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">
                   Owner
                 </h2>
-                <p className="font-mono text-sm break-all text-white">{owner}</p>
+                <p className="font-mono text-sm break-all text-white mb-3">{owner}</p>
+                <div className="flex gap-3">
+                  <a href={`https://etherscan.io/address/${owner}`} target="_blank" rel="noopener noreferrer" className="text-xs text-[#C3FF00] hover:underline">Etherscan</a>
+                  <a href={`https://ethscriptions.com/profiles/${owner}`} target="_blank" rel="noopener noreferrer" className="text-xs text-[#C3FF00] hover:underline">Ethscriptions</a>
+                </div>
+              </div>
+
+              {/* API / Link */}
+              <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                  API &amp; Links
+                </h2>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Direct link</p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-xs text-gray-300 break-all">
+                        {`https://chainhost.online/resolve/${name}`}
+                      </code>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(`https://chainhost.online/resolve/${name}`)}
+                        className="shrink-0 px-3 py-2 bg-zinc-800 rounded text-xs text-gray-400 hover:text-[#C3FF00] transition"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">JSON API</p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-xs text-gray-300 break-all">
+                        {`https://chainhost.online/api/resolve?name=${name}`}
+                      </code>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(`https://chainhost.online/api/resolve?name=${name}`)}
+                        className="shrink-0 px-3 py-2 bg-zinc-800 rounded text-xs text-gray-400 hover:text-[#C3FF00] transition"
+                      >
+                        Copy
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Holdings */}
@@ -174,33 +216,36 @@ export default function ResolvePage() {
                   <p className="text-gray-500 text-sm text-center py-4">No ethscriptions found.</p>
                 ) : (
                   <div className="grid grid-cols-5 gap-2">
-                    {holdings.map((e) => (
-                      <a
-                        key={e.transaction_hash}
-                        href={`https://ethscriptions.com/ethscriptions/${e.transaction_hash}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="aspect-square bg-zinc-800 rounded-lg overflow-hidden hover:ring-2 hover:ring-[#C3FF00] transition"
-                      >
-                        <img
-                          src={`https://api.ethscriptions.com/v2/ethscriptions/${e.transaction_hash}/content`}
-                          alt=""
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                          onError={(ev) => {
-                            const target = ev.currentTarget;
-                            target.style.display = "none";
-                            const uri = e.content_uri || "";
-                            if (uri.startsWith("data:,")) {
-                              const span = document.createElement("span");
-                              span.className = "flex items-center justify-center w-full h-full text-[10px] text-gray-500 p-1 break-all";
-                              span.textContent = decodeURIComponent(uri.slice(6)).slice(0, 20);
-                              target.parentElement?.appendChild(span);
-                            }
-                          }}
-                        />
-                      </a>
-                    ))}
+                    {holdings.map((e) => {
+                      const contentUrl = `https://api.ethscriptions.com/v2/ethscriptions/${e.transaction_hash}/content`;
+                      const mime = e.mimetype || "";
+                      const isText = mime.startsWith("text/plain");
+                      const uri = e.content_uri || "";
+
+                      return (
+                        <a
+                          key={e.transaction_hash}
+                          href={`https://ethscriptions.com/ethscriptions/${e.transaction_hash}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="aspect-square bg-zinc-800 rounded-lg overflow-hidden hover:ring-2 hover:ring-[#C3FF00] transition relative"
+                        >
+                          {isText && uri.startsWith("data:,") ? (
+                            <span className="flex items-center justify-center w-full h-full text-[10px] text-gray-400 p-1 break-all leading-tight text-center">
+                              {decodeURIComponent(uri.slice(6)).slice(0, 40)}
+                            </span>
+                          ) : (
+                            <iframe
+                              src={contentUrl}
+                              sandbox=""
+                              loading="lazy"
+                              className="w-full h-full border-0 pointer-events-none"
+                              style={{ imageRendering: "pixelated" }}
+                            />
+                          )}
+                        </a>
+                      );
+                    })}
                   </div>
                 )}
               </div>
