@@ -2097,7 +2097,7 @@ Migrated! <a id="uni-link" href="#" target="_blank">Trade on Uniswap</a>
 <li>0.69% fee on sells during bonding phase</li>
 <li>LP tokens are <b style="color:var(--text)">burned</b> at migration &mdash; no rug pulls</li>
 <li>Polynomial curve: price = basePrice &times; (supply/max)<sup>1.5</sup></li>
-</ul><p class="warn">Use at your own risk. DYOR. Unaudited contracts.</p></div>
+</ul><p class="warn">Use at your own risk. FAFO. Have fun.</p></div>
 <div class="cd" id="trade-card">
 <div class="tabs"><button class="tab a" id="tb" onclick="sm('b')">Buy</button><button class="tab" id="ts2" onclick="sm('s')">Sell</button></div>
 <div class="ig"><label>Amount ($` + esc + `)</label>
