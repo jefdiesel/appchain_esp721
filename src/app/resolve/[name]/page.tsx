@@ -132,6 +132,43 @@ export default function ResolveNamePage() {
               </div>
             </div>
 
+            {/* API / Link */}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">
+                API &amp; Links
+              </h2>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">Direct link</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-xs text-gray-300 break-all">
+                      {`https://chainhost.online/resolve/${name}`}
+                    </code>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(`https://chainhost.online/resolve/${name}`)}
+                      className="shrink-0 px-3 py-2 bg-zinc-800 rounded text-xs text-gray-400 hover:text-[#C3FF00] transition"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 mb-1">JSON API</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-xs text-gray-300 break-all">
+                      {`https://chainhost.online/api/resolve?name=${name}`}
+                    </code>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(`https://chainhost.online/api/resolve?name=${name}`)}
+                      className="shrink-0 px-3 py-2 bg-zinc-800 rounded text-xs text-gray-400 hover:text-[#C3FF00] transition"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <Link
                 href="/register"
