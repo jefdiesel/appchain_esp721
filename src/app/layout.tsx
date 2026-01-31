@@ -28,10 +28,9 @@ export const metadata: Metadata = {
     title: "Chainhost - Host Sites on Ethereum",
     description: "Build and host websites permanently on Ethereum calldata. No servers, no renewals, no takedowns.",
     url: "https://chainhost.online",
-    images: [{ url: "/favicon.png", width: 256, height: 256 }],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "Chainhost - Host Sites on Ethereum",
     description: "Build and host websites permanently on Ethereum calldata. No servers, no renewals, no takedowns.",
     images: ["/favicon.png"],
