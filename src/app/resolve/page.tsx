@@ -96,7 +96,7 @@ export default function ResolvePage() {
 
       <main className="max-w-2xl mx-auto px-6 py-16">
         <h1 className="text-4xl font-bold text-center mb-4">Resolve Name</h1>
-        <p className="text-gray-500 text-center mb-12">
+        <p className="text-gray-400 text-center mb-12">
           Look up any ethscription name to find its owner and their holdings.
         </p>
 
@@ -173,7 +173,7 @@ export default function ResolvePage() {
                 </h2>
                 <div className="space-y-3">
                   <div>
-                    <p className="text-xs text-gray-500 mb-1">Direct link</p>
+                    <p className="text-xs text-gray-400 mb-1">Direct link</p>
                     <div className="flex items-center gap-2">
                       <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-xs text-gray-300 break-all">
                         {`https://chainhost.online/resolve/${name}`}
@@ -187,7 +187,7 @@ export default function ResolvePage() {
                     </div>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500 mb-1">JSON API</p>
+                    <p className="text-xs text-gray-400 mb-1">JSON API</p>
                     <div className="flex items-center gap-2">
                       <code className="flex-1 bg-zinc-800 px-3 py-2 rounded text-xs text-gray-300 break-all">
                         {`https://chainhost.online/api/resolve?name=${name}`}
@@ -210,28 +210,28 @@ export default function ResolvePage() {
                   className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-center hover:border-[#C3FF00] transition"
                 >
                   <p className="text-[#C3FF00] font-semibold text-sm">Register Names</p>
-                  <p className="text-gray-500 text-xs mt-1">Claim more names</p>
+                  <p className="text-gray-400 text-xs mt-1">Claim more names</p>
                 </Link>
                 <Link
                   href="/mail"
                   className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-center hover:border-[#C3FF00] transition"
                 >
                   <p className="text-[#C3FF00] font-semibold text-sm">Mail</p>
-                  <p className="text-gray-500 text-xs mt-1">{name}@chainhost.online</p>
+                  <p className="text-gray-400 text-xs mt-1">{name}@chainhost.online</p>
                 </Link>
                 <Link
                   href="/upload"
                   className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-center hover:border-[#C3FF00] transition"
                 >
                   <p className="text-[#C3FF00] font-semibold text-sm">Upload Site</p>
-                  <p className="text-gray-500 text-xs mt-1">{name}.chainhost.online</p>
+                  <p className="text-gray-400 text-xs mt-1">{name}.chainhost.online</p>
                 </Link>
                 <Link
                   href="/mint"
                   className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-center hover:border-[#C3FF00] transition"
                 >
                   <p className="text-[#C3FF00] font-semibold text-sm">Mint Token</p>
-                  <p className="text-gray-500 text-xs mt-1">${name}</p>
+                  <p className="text-gray-400 text-xs mt-1">${name}</p>
                 </Link>
               </div>
 
@@ -245,7 +245,7 @@ export default function ResolvePage() {
                     <div className="w-6 h-6 border-2 border-zinc-600 border-t-[#C3FF00] rounded-full animate-spin" />
                   </div>
                 ) : holdings.length === 0 ? (
-                  <p className="text-gray-500 text-sm text-center py-4">No ethscriptions found.</p>
+                  <p className="text-gray-400 text-sm text-center py-4">No ethscriptions found.</p>
                 ) : (
                   <div className="max-h-[480px] overflow-y-auto scrollbar-thin scrollbar-thumb-zinc-700">
                     <div className="grid grid-cols-5 gap-2">
