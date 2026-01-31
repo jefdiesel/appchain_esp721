@@ -145,11 +145,10 @@ export default function ResolveNamePage() {
               ) : (
                 <div className="grid grid-cols-5 gap-2">
                   {holdings.map((e) => {
-                    const contentUrl = `https://api.ethscriptions.com/v2/ethscriptions/${e.transaction_hash}/content`;
                     const mime = e.mimetype || "";
+                    const uri = e.content_uri || "";
                     const isImage = mime.startsWith("image/");
                     const isHtml = mime.startsWith("text/html");
-                    const uri = e.content_uri || "";
                     let label = "";
                     if (!isImage && !isHtml) {
                       try {
@@ -171,7 +170,7 @@ export default function ResolveNamePage() {
                       >
                         {isImage ? (
                           <img
-                            src={contentUrl}
+                            src={uri}
                             alt=""
                             className="w-full h-full object-contain"
                             style={{ imageRendering: "pixelated" }}
@@ -179,7 +178,8 @@ export default function ResolveNamePage() {
                           />
                         ) : isHtml ? (
                           <iframe
-                            src={contentUrl}
+                            srcDoc={uri.startsWith("data:text/html;base64,") ? atob(uri.slice(22)) : undefined}
+                            src={!uri.startsWith("data:text/html;base64,") ? uri : undefined}
                             sandbox="allow-scripts"
                             loading="lazy"
                             className="w-full h-full border-0 pointer-events-none scale-[0.25] origin-top-left"
