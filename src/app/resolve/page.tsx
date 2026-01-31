@@ -217,21 +217,21 @@ export default function ResolvePage() {
                   className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-center hover:border-[#C3FF00] transition"
                 >
                   <p className="text-[#C3FF00] font-semibold text-sm">Mail</p>
-                  <p className="text-gray-500 text-xs mt-1">Send & receive mail</p>
+                  <p className="text-gray-500 text-xs mt-1">{name}@chainhost.online</p>
                 </Link>
                 <Link
                   href="/upload"
                   className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-center hover:border-[#C3FF00] transition"
                 >
                   <p className="text-[#C3FF00] font-semibold text-sm">Upload Site</p>
-                  <p className="text-gray-500 text-xs mt-1">Host a web page in call data</p>
+                  <p className="text-gray-500 text-xs mt-1">{name}.chainhost.online</p>
                 </Link>
                 <Link
                   href="/mint"
                   className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-center hover:border-[#C3FF00] transition"
                 >
                   <p className="text-[#C3FF00] font-semibold text-sm">Mint Token</p>
-                  <p className="text-gray-500 text-xs mt-1">Launch a shitcoin</p>
+                  <p className="text-gray-500 text-xs mt-1">${name}</p>
                 </Link>
               </div>
 
