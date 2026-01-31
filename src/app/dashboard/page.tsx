@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Nav from "@/components/Nav";
 import { MARKETPLACE_CONTRACT, MARKETPLACE_ABI, weiToEth } from "@/lib/marketplace";
 import { getUserWalletClient, setChain } from "@/lib/wallet";
 
@@ -194,20 +195,7 @@ export default function DashboardPage() {
   if (!address) {
     return (
       <div className="min-h-screen bg-black text-white">
-        <header className="border-b border-gray-800 p-4">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <Link href="/" className="text-2xl font-bold flex items-center gap-2">
-              <img src="/favicon.png" alt="" className="w-6 h-6" />
-              <span><span className="text-white">Chain</span><span className="text-[#C3FF00]">Host</span></span>
-            </Link>
-            <button
-              onClick={connectWallet}
-              className="bg-[#C3FF00] text-black hover:bg-[#d4ff4d] px-4 py-2 rounded-lg text-sm font-semibold"
-            >
-              Connect Wallet
-            </button>
-          </div>
-        </header>
+        <Nav />
         <main className="max-w-2xl mx-auto p-6 text-center py-20">
           <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
           <p className="text-gray-400 mb-8">
@@ -226,20 +214,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <header className="border-b border-gray-800 p-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <Link href="/" className="text-2xl font-bold">
-            <span className="text-white">CHAIN</span>
-            <span className="text-[#C3FF00]">HOST</span>
-          </Link>
-          <nav className="flex items-center gap-6">
-            <Link href="/marketplace" className="hover:text-[#C3FF00]">
-              Marketplace
-            </Link>
-            <span className="text-gray-400 font-mono">{formatAddress(address)}</span>
-          </nav>
-        </div>
-      </header>
+      <Nav />
 
       <main className="max-w-4xl mx-auto p-6">
         <h1 className="text-3xl font-bold mb-6">Dashboard</h1>

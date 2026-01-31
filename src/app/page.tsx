@@ -1,44 +1,11 @@
 import Link from "next/link";
 import SiteFeed from "@/components/SiteFeed";
+import Nav from "@/components/Nav";
 
 export default function Home() {
   return (
     <div className="min-h-screen">
-      {/* Nav */}
-      <nav className="border-b border-zinc-800 px-6 py-4">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link href="/" className="text-xl font-bold flex items-center gap-2">
-            <img src="/favicon.png" alt="" className="w-5 h-5" />
-            <span><span className="text-white">Chain</span><span className="text-[#C3FF00]">Host</span></span>
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link
-              href="/marketplace"
-              className="px-4 py-2 text-sm hover:text-[#C3FF00] transition"
-            >
-              Marketplace
-            </Link>
-            <Link
-              href="/mint/"
-              className="px-4 py-2 text-sm hover:text-[#C3FF00] transition"
-            >
-              Mint
-            </Link>
-            <Link
-              href="/register"
-              className="px-4 py-2 text-sm hover:text-[#C3FF00] transition"
-            >
-              Register Name
-            </Link>
-            <Link
-              href="/upload"
-              className="px-4 py-2 bg-[#C3FF00] text-black font-semibold rounded-lg hover:bg-[#d4ff4d] transition"
-            >
-              Upload Site
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <Nav />
 
       {/* Hero */}
       <section className="py-24 px-6">

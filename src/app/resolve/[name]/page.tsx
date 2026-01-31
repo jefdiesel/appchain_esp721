@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import Nav from "@/components/Nav";
 
 interface Ethscription {
   transaction_hash: string;
@@ -64,28 +65,7 @@ export default function ResolveNamePage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <nav className="border-b border-zinc-800 px-6 py-4">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <Link href="/" className="text-xl font-bold flex items-center gap-2">
-            <img src="/favicon.png" alt="" className="w-5 h-5" />
-            <span>
-              <span className="text-white">Chain</span>
-              <span className="text-[#C3FF00]">Host</span>
-            </span>
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link href="/resolve" className="text-sm text-gray-400 hover:text-white">
-              Resolve
-            </Link>
-            <Link href="/register" className="text-sm text-gray-400 hover:text-white">
-              Register
-            </Link>
-            <Link href="/upload" className="text-sm text-gray-400 hover:text-white">
-              Upload Site
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <Nav />
 
       <main className="max-w-2xl mx-auto px-6 py-16">
         <h1 className="text-4xl font-bold text-center mb-2">{name}</h1>

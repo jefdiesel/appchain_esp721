@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import Nav from "@/components/Nav";
 import { inscribeWithUserWallet, setChain, type ChainOption } from "@/lib/wallet";
 import { TEMPLATE_DEFINITIONS, renderTemplate, type Post } from "@/lib/templates";
 
@@ -965,23 +966,7 @@ function BuilderContent() {
 
   return (
     <div className="min-h-screen">
-      {/* Nav */}
-      <nav className="border-b border-zinc-800 px-6 py-4">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link href="/" className="text-xl font-bold">
-            <span className="text-white">CHAIN</span>
-            <span className="text-[#C3FF00]">HOST</span>
-          </Link>
-          <div className="flex items-center gap-4 text-sm">
-            <Link
-              href="/dashboard"
-              className="hover:text-[#C3FF00] transition"
-            >
-              Dashboard
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <Nav />
 
       <main className="max-w-4xl mx-auto px-6 py-12">
         {/* Progress Steps */}

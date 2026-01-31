@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
+import Nav from "@/components/Nav";
 import { getUserWalletClient, setChain } from "@/lib/wallet";
 import { MARKETPLACE_CONTRACT } from "@/lib/marketplace";
 
@@ -472,30 +473,7 @@ export default function ListingPage({
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* Header */}
-      <header className="border-b border-zinc-800 p-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <Link href="/" className="text-2xl font-bold flex items-center gap-2">
-            <img src="/favicon.png" alt="" className="w-6 h-6" />
-            <span><span className="text-white">Chain</span><span className="text-[#C3FF00]">Host</span></span>
-          </Link>
-          <nav className="flex items-center gap-6">
-            <Link href="/marketplace" className="text-[#C3FF00]">
-              Marketplace
-            </Link>
-            {address ? (
-              <span className="text-gray-400 font-mono">{formatAddress(address)}</span>
-            ) : (
-              <button
-                onClick={connectWallet}
-                className="bg-[#C3FF00] text-black hover:bg-[#d4ff4d] px-4 py-2 rounded-lg text-sm font-semibold"
-              >
-                Connect Wallet
-              </button>
-            )}
-          </nav>
-        </div>
-      </header>
+      <Nav />
 
       <main className="max-w-4xl mx-auto p-6">
         <Link

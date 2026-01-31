@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Nav from "@/components/Nav";
 
 interface Site {
   name: string;
@@ -26,29 +27,7 @@ export default function FeedPage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* Nav */}
-      <nav className="border-b border-zinc-800 px-6 py-4">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <Link href="/" className="text-xl font-bold">
-            <span className="text-white">CHAIN</span>
-            <span className="text-[#C3FF00]">HOST</span>
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link
-              href="/register"
-              className="text-sm text-gray-400 hover:text-white"
-            >
-              Register
-            </Link>
-            <Link
-              href="/upload"
-              className="text-sm text-gray-400 hover:text-white"
-            >
-              Upload
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <Nav />
 
       <main className="max-w-2xl mx-auto px-6 py-12">
         <h1 className="text-3xl font-bold text-center mb-2">Live Sites</h1>

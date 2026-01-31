@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import Nav from "@/components/Nav";
 
 type ChainOption = "eth" | "base";
 
@@ -453,26 +454,7 @@ function UploadContent() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* Nav */}
-      <nav className="border-b border-zinc-800 px-6 py-4">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
-          <Link href="/" className="text-xl font-bold flex items-center gap-2">
-            <img src="/favicon.png" alt="" className="w-5 h-5" />
-            <span><span className="text-white">Chain</span><span className="text-[#C3FF00]">Host</span></span>
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link href="/mint/" className="text-sm text-gray-400 hover:text-white">
-              Mint
-            </Link>
-            <Link
-              href="/register"
-              className="text-sm text-gray-400 hover:text-white"
-            >
-              Register Name
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <Nav />
 
       <main className="max-w-2xl mx-auto px-6 py-12">
         <h1 className="text-3xl font-bold text-center mb-2">Upload Your Site</h1>
