@@ -2070,7 +2070,7 @@ canvas{width:100%;height:200px;display:block;margin:.5rem 0;border-radius:8px}
 .info{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:1.25rem;margin-bottom:1rem;font-size:.8rem;color:var(--dim);line-height:1.6}
 .info h2{font-size:.85rem;color:var(--dim);text-transform:uppercase;letter-spacing:.05em;margin-bottom:.75rem}
 .info ul{list-style:none;padding:0}.info li{padding:.25rem 0}.info li::before{content:"·";color:var(--accent);margin-right:.5rem;font-weight:700}
-.info .warn{color:var(--red);font-weight:600;margin-top:.75rem;padding-top:.5rem;border-top:1px solid var(--border)}
+.info .warn{color:#c3ff00;font-weight:600;margin-top:.75rem;padding-top:.5rem;border-top:1px solid var(--border)}
 </style>
 </head>
 <body>
