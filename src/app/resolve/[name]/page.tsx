@@ -147,8 +147,19 @@ export default function ResolveNamePage() {
                   {holdings.map((e) => {
                     const contentUrl = `https://api.ethscriptions.com/v2/ethscriptions/${e.transaction_hash}/content`;
                     const mime = e.mimetype || "";
-                    const isText = mime.startsWith("text/plain");
+                    const isImage = mime.startsWith("image/");
+                    const isHtml = mime.startsWith("text/html");
                     const uri = e.content_uri || "";
+                    let label = "";
+                    if (!isImage && !isHtml) {
+                      try {
+                        const prefix = "data:" + mime + ",";
+                        const altPrefix = "data:,";
+                        if (uri.startsWith(prefix)) label = decodeURIComponent(uri.slice(prefix.length)).slice(0, 40);
+                        else if (uri.startsWith(altPrefix)) label = decodeURIComponent(uri.slice(altPrefix.length)).slice(0, 40);
+                        else label = mime || "?";
+                      } catch { label = mime || "?"; }
+                    }
 
                     return (
                       <a
@@ -158,18 +169,26 @@ export default function ResolveNamePage() {
                         rel="noopener noreferrer"
                         className="aspect-square bg-zinc-800 rounded-lg overflow-hidden hover:ring-2 hover:ring-[#C3FF00] transition relative"
                       >
-                        {isText && uri.startsWith("data:,") ? (
-                          <span className="flex items-center justify-center w-full h-full text-[10px] text-gray-400 p-1 break-all leading-tight text-center">
-                            {decodeURIComponent(uri.slice(6)).slice(0, 40)}
-                          </span>
-                        ) : (
+                        {isImage ? (
+                          <img
+                            src={contentUrl}
+                            alt=""
+                            className="w-full h-full object-contain"
+                            style={{ imageRendering: "pixelated" }}
+                            loading="lazy"
+                          />
+                        ) : isHtml ? (
                           <iframe
                             src={contentUrl}
-                            sandbox=""
+                            sandbox="allow-scripts"
                             loading="lazy"
-                            className="w-full h-full border-0 pointer-events-none"
-                            style={{ imageRendering: "pixelated" }}
+                            className="w-full h-full border-0 pointer-events-none scale-[0.25] origin-top-left"
+                            style={{ width: "400%", height: "400%" }}
                           />
+                        ) : (
+                          <span className="flex items-center justify-center w-full h-full text-[10px] text-gray-400 p-1 break-all leading-tight text-center">
+                            {label}
+                          </span>
                         )}
                       </a>
                     );
