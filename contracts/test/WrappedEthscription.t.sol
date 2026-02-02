@@ -11,15 +11,12 @@ contract ERC721Receiver {
     }
 }
 
-contract BadReceiver {
-    // Does NOT implement onERC721Received
-}
+contract BadReceiver {}
 
 contract WrappedEthscriptionTest is Test {
     WrappedEthscription nft;
 
     address admin = address(this);
-    address relayer = address(0xBEEF);
     address alice = address(0xA11CE);
     address bob = address(0xB0B);
     address charlie = address(0xC0C0);
@@ -34,10 +31,16 @@ contract WrappedEthscriptionTest is Test {
     event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
     event Approval(address indexed owner, address indexed approved, uint256 indexed tokenId);
     event ApprovalForAll(address indexed owner, address indexed operator, bool approved);
-    event Burned(bytes32 indexed ethscriptionId, address indexed owner);
+    event Wrapped(bytes32 indexed ethscriptionId, address indexed owner);
+    event Unwrapped(bytes32 indexed ethscriptionId, address indexed owner);
+    event ethscriptions_protocol_TransferEthscriptionForPreviousOwner(
+        address indexed previousOwner,
+        address indexed recipient,
+        bytes32 indexed ethscriptionId
+    );
 
     function setUp() public {
-        nft = new WrappedEthscription(BASE_URI, relayer);
+        nft = new WrappedEthscription(BASE_URI);
     }
 
     // ---- Constructor ----
@@ -46,7 +49,6 @@ contract WrappedEthscriptionTest is Test {
         assertEq(nft.name(), "Wrapped Ethscription");
         assertEq(nft.symbol(), "wESC");
         assertEq(nft.admin(), admin);
-        assertEq(nft.relayer(), relayer);
         assertEq(nft.baseURI(), BASE_URI);
     }
 
@@ -68,125 +70,159 @@ contract WrappedEthscriptionTest is Test {
         assertFalse(nft.supportsInterface(0xdeadbeef));
     }
 
-    // ---- Mint ----
+    // ---- Wrap ----
 
-    function test_mint_success() public {
-        vm.prank(relayer);
+    function test_wrap_success() public {
+        vm.prank(alice);
         vm.expectEmit(true, true, true, false);
         emit Transfer(address(0), alice, tokenId1);
-        nft.mint(escId1, alice);
+        vm.expectEmit(true, true, false, false);
+        emit Wrapped(escId1, alice);
+        nft.wrap(escId1);
 
         assertEq(nft.ownerOf(tokenId1), alice);
         assertEq(nft.balanceOf(alice), 1);
+        assertEq(nft.depositors(escId1), alice);
     }
 
-    function test_mint_multiple() public {
-        vm.prank(relayer);
-        nft.mint(escId1, alice);
-        vm.prank(relayer);
-        nft.mint(escId2, alice);
+    function test_wrap_multiple() public {
+        vm.prank(alice);
+        nft.wrap(escId1);
+        vm.prank(alice);
+        nft.wrap(escId2);
 
         assertEq(nft.balanceOf(alice), 2);
         assertEq(nft.ownerOf(tokenId1), alice);
         assertEq(nft.ownerOf(tokenId2), alice);
     }
 
-    function test_mint_reverts_if_not_relayer() public {
+    function test_wrap_different_users() public {
         vm.prank(alice);
-        vm.expectRevert("Not relayer");
-        nft.mint(escId1, alice);
+        nft.wrap(escId1);
+        vm.prank(bob);
+        nft.wrap(escId2);
+
+        assertEq(nft.depositors(escId1), alice);
+        assertEq(nft.depositors(escId2), bob);
     }
 
-    function test_mint_reverts_if_already_minted() public {
-        vm.prank(relayer);
-        nft.mint(escId1, alice);
+    function test_wrap_reverts_already_wrapped() public {
+        vm.prank(alice);
+        nft.wrap(escId1);
 
-        vm.prank(relayer);
-        vm.expectRevert("Already minted");
-        nft.mint(escId1, bob);
+        vm.prank(bob);
+        vm.expectRevert("Already wrapped");
+        nft.wrap(escId1);
     }
 
-    function test_mint_reverts_zero_address() public {
-        vm.prank(relayer);
-        vm.expectRevert("Zero address");
-        nft.mint(escId1, address(0));
-    }
+    // ---- Unwrap ----
 
-    // ---- Burn ----
-
-    function test_burn_success() public {
-        vm.prank(relayer);
-        nft.mint(escId1, alice);
+    function test_unwrap_success() public {
+        vm.prank(alice);
+        nft.wrap(escId1);
 
         vm.prank(alice);
+        vm.expectEmit(true, true, true, false);
+        emit Transfer(alice, address(0), tokenId1);
         vm.expectEmit(true, true, false, false);
-        emit Burned(escId1, alice);
-        nft.burn(tokenId1);
+        emit Unwrapped(escId1, alice);
+        nft.unwrap(tokenId1);
 
         assertEq(nft.balanceOf(alice), 0);
+        assertEq(nft.depositors(escId1), address(0));
 
         vm.expectRevert("Token does not exist");
         nft.ownerOf(tokenId1);
     }
 
-    function test_burn_emits_transfer_to_zero() public {
-        vm.prank(relayer);
-        nft.mint(escId1, alice);
+    function test_unwrap_emits_esip2_transfer() public {
+        vm.prank(alice);
+        nft.wrap(escId1);
 
         vm.prank(alice);
         vm.expectEmit(true, true, true, false);
-        emit Transfer(alice, address(0), tokenId1);
-        nft.burn(tokenId1);
+        emit ethscriptions_protocol_TransferEthscriptionForPreviousOwner(
+            address(nft),
+            alice,
+            escId1
+        );
+        nft.unwrap(tokenId1);
     }
 
-    function test_burn_reverts_if_not_owner() public {
-        vm.prank(relayer);
-        nft.mint(escId1, alice);
+    function test_unwrap_reverts_not_owner() public {
+        vm.prank(alice);
+        nft.wrap(escId1);
 
         vm.prank(bob);
         vm.expectRevert("Not token owner");
-        nft.burn(tokenId1);
+        nft.unwrap(tokenId1);
     }
 
-    function test_burn_clears_approval() public {
-        vm.prank(relayer);
-        nft.mint(escId1, alice);
+    function test_unwrap_clears_approval() public {
+        vm.prank(alice);
+        nft.wrap(escId1);
 
         vm.prank(alice);
         nft.approve(bob, tokenId1);
         assertEq(nft.getApproved(tokenId1), bob);
 
         vm.prank(alice);
-        nft.burn(tokenId1);
+        nft.unwrap(tokenId1);
 
-        // Token no longer exists
         vm.expectRevert("Token does not exist");
         nft.getApproved(tokenId1);
     }
 
-    function test_burn_then_remint() public {
-        vm.prank(relayer);
-        nft.mint(escId1, alice);
+    // ---- Wrap → Transfer → Unwrap (OpenSea sale flow) ----
+
+    function test_wrap_transfer_unwrap() public {
+        // Alice wraps
+        vm.prank(alice);
+        nft.wrap(escId1);
+
+        // Alice sells/transfers NFT to Bob (e.g. OpenSea)
+        vm.prank(alice);
+        nft.transferFrom(alice, bob, tokenId1);
+        assertEq(nft.ownerOf(tokenId1), bob);
+
+        // Bob unwraps — gets the ethscription via ESIP-2
+        vm.prank(bob);
+        vm.expectEmit(true, true, true, false);
+        emit ethscriptions_protocol_TransferEthscriptionForPreviousOwner(
+            address(nft),
+            bob,
+            escId1
+        );
+        nft.unwrap(tokenId1);
+
+        assertEq(nft.balanceOf(bob), 0);
+        assertEq(nft.depositors(escId1), address(0));
+    }
+
+    // ---- Re-wrap cycle ----
+
+    function test_rewrap_after_unwrap() public {
+        vm.prank(alice);
+        nft.wrap(escId1);
 
         vm.prank(alice);
-        nft.burn(tokenId1);
+        nft.unwrap(tokenId1);
 
-        // Can re-mint the same ID
-        vm.prank(relayer);
-        nft.mint(escId1, bob);
+        // Can wrap again
+        vm.prank(bob);
+        nft.wrap(escId1);
         assertEq(nft.ownerOf(tokenId1), bob);
+        assertEq(nft.depositors(escId1), bob);
     }
 
     // ---- TokenURI ----
 
     function test_tokenURI() public {
-        vm.prank(relayer);
-        nft.mint(escId1, alice);
+        vm.prank(alice);
+        nft.wrap(escId1);
 
         string memory uri = nft.tokenURI(tokenId1);
-        // Should be baseURI + hex(escId1)
         assertTrue(bytes(uri).length > 0);
-        // Starts with base URI
         assertTrue(_startsWith(uri, BASE_URI));
     }
 
@@ -198,8 +234,8 @@ contract WrappedEthscriptionTest is Test {
     // ---- Transfers ----
 
     function test_transferFrom() public {
-        vm.prank(relayer);
-        nft.mint(escId1, alice);
+        vm.prank(alice);
+        nft.wrap(escId1);
 
         vm.prank(alice);
         nft.transferFrom(alice, bob, tokenId1);
@@ -210,8 +246,8 @@ contract WrappedEthscriptionTest is Test {
     }
 
     function test_transferFrom_approved() public {
-        vm.prank(relayer);
-        nft.mint(escId1, alice);
+        vm.prank(alice);
+        nft.wrap(escId1);
 
         vm.prank(alice);
         nft.approve(bob, tokenId1);
@@ -222,8 +258,8 @@ contract WrappedEthscriptionTest is Test {
     }
 
     function test_transferFrom_operator() public {
-        vm.prank(relayer);
-        nft.mint(escId1, alice);
+        vm.prank(alice);
+        nft.wrap(escId1);
 
         vm.prank(alice);
         nft.setApprovalForAll(bob, true);
@@ -234,8 +270,8 @@ contract WrappedEthscriptionTest is Test {
     }
 
     function test_transferFrom_reverts_unauthorized() public {
-        vm.prank(relayer);
-        nft.mint(escId1, alice);
+        vm.prank(alice);
+        nft.wrap(escId1);
 
         vm.prank(bob);
         vm.expectRevert("Not authorized");
@@ -243,8 +279,8 @@ contract WrappedEthscriptionTest is Test {
     }
 
     function test_transferFrom_reverts_wrong_from() public {
-        vm.prank(relayer);
-        nft.mint(escId1, alice);
+        vm.prank(alice);
+        nft.wrap(escId1);
 
         vm.prank(alice);
         vm.expectRevert("Not owner");
@@ -252,8 +288,8 @@ contract WrappedEthscriptionTest is Test {
     }
 
     function test_transferFrom_reverts_to_zero() public {
-        vm.prank(relayer);
-        nft.mint(escId1, alice);
+        vm.prank(alice);
+        nft.wrap(escId1);
 
         vm.prank(alice);
         vm.expectRevert("Zero address");
@@ -261,8 +297,8 @@ contract WrappedEthscriptionTest is Test {
     }
 
     function test_transferFrom_clears_approval() public {
-        vm.prank(relayer);
-        nft.mint(escId1, alice);
+        vm.prank(alice);
+        nft.wrap(escId1);
 
         vm.prank(alice);
         nft.approve(bob, tokenId1);
@@ -276,8 +312,8 @@ contract WrappedEthscriptionTest is Test {
     // ---- safeTransferFrom ----
 
     function test_safeTransferFrom_to_eoa() public {
-        vm.prank(relayer);
-        nft.mint(escId1, alice);
+        vm.prank(alice);
+        nft.wrap(escId1);
 
         vm.prank(alice);
         nft.safeTransferFrom(alice, bob, tokenId1);
@@ -287,8 +323,8 @@ contract WrappedEthscriptionTest is Test {
     function test_safeTransferFrom_to_receiver_contract() public {
         ERC721Receiver receiver = new ERC721Receiver();
 
-        vm.prank(relayer);
-        nft.mint(escId1, alice);
+        vm.prank(alice);
+        nft.wrap(escId1);
 
         vm.prank(alice);
         nft.safeTransferFrom(alice, address(receiver), tokenId1);
@@ -298,8 +334,8 @@ contract WrappedEthscriptionTest is Test {
     function test_safeTransferFrom_reverts_bad_receiver() public {
         BadReceiver bad = new BadReceiver();
 
-        vm.prank(relayer);
-        nft.mint(escId1, alice);
+        vm.prank(alice);
+        nft.wrap(escId1);
 
         vm.prank(alice);
         vm.expectRevert("Non-ERC721 receiver");
@@ -309,8 +345,8 @@ contract WrappedEthscriptionTest is Test {
     // ---- Approval ----
 
     function test_approve() public {
-        vm.prank(relayer);
-        nft.mint(escId1, alice);
+        vm.prank(alice);
+        nft.wrap(escId1);
 
         vm.prank(alice);
         vm.expectEmit(true, true, true, false);
@@ -321,8 +357,8 @@ contract WrappedEthscriptionTest is Test {
     }
 
     function test_approve_reverts_unauthorized() public {
-        vm.prank(relayer);
-        nft.mint(escId1, alice);
+        vm.prank(alice);
+        nft.wrap(escId1);
 
         vm.prank(bob);
         vm.expectRevert("Not authorized");
@@ -330,8 +366,8 @@ contract WrappedEthscriptionTest is Test {
     }
 
     function test_approve_by_operator() public {
-        vm.prank(relayer);
-        nft.mint(escId1, alice);
+        vm.prank(alice);
+        nft.wrap(escId1);
 
         vm.prank(alice);
         nft.setApprovalForAll(bob, true);
@@ -368,43 +404,63 @@ contract WrappedEthscriptionTest is Test {
         nft.setBaseURI("x");
     }
 
-    function test_setRelayer() public {
-        nft.setRelayer(alice);
-        assertEq(nft.relayer(), alice);
-    }
-
     function test_transferAdmin() public {
         nft.transferAdmin(alice);
         assertEq(nft.admin(), alice);
     }
 
+    // ---- Multiple wraps simultaneously ----
+
+    function test_multiple_wraps_partial_unwrap() public {
+        bytes32 id1 = keccak256("data:,name1");
+        bytes32 id2 = keccak256("data:,name2");
+        bytes32 id3 = keccak256("data:,name3");
+
+        vm.startPrank(alice);
+        nft.wrap(id1);
+        nft.wrap(id2);
+        nft.wrap(id3);
+        vm.stopPrank();
+
+        assertEq(nft.balanceOf(alice), 3);
+
+        // Unwrap one
+        vm.prank(alice);
+        nft.unwrap(uint256(id2));
+        assertEq(nft.balanceOf(alice), 2);
+        assertEq(nft.depositors(id2), address(0));
+        // Others still wrapped
+        assertEq(nft.depositors(id1), alice);
+        assertEq(nft.depositors(id3), alice);
+    }
+
     // ---- Fuzz ----
 
-    function testFuzz_mint_burn_cycle(bytes32 id, address user) public {
+    function testFuzz_wrap_unwrap_cycle(bytes32 id, address user) public {
         vm.assume(user != address(0));
-        vm.assume(user.code.length == 0); // EOA only
+        vm.assume(user.code.length == 0);
 
         uint256 tokenId = uint256(id);
 
-        vm.prank(relayer);
-        nft.mint(id, user);
+        vm.prank(user);
+        nft.wrap(id);
         assertEq(nft.ownerOf(tokenId), user);
         assertEq(nft.balanceOf(user), 1);
 
         vm.prank(user);
-        nft.burn(tokenId);
+        nft.unwrap(tokenId);
         assertEq(nft.balanceOf(user), 0);
     }
 
-    function testFuzz_transfer(bytes32 id, address from, address to) public {
+    function testFuzz_wrap_transfer(bytes32 id, address from, address to) public {
         vm.assume(from != address(0) && to != address(0));
         vm.assume(from != to);
         vm.assume(from.code.length == 0 && to.code.length == 0);
 
         uint256 tokenId = uint256(id);
 
-        vm.prank(relayer);
-        nft.mint(id, from);
+        vm.prank(from);
+        nft.wrap(id);
 
         vm.prank(from);
         nft.transferFrom(from, to, tokenId);

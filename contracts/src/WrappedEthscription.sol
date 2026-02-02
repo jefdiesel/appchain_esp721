@@ -3,8 +3,16 @@ pragma solidity ^0.8.20;
 
 /**
  * @title WrappedEthscription
- * @notice ERC-721 NFT representing a wrapped ethscription, deployed on Base
- * @dev tokenId = uint256(ethscriptionId) for 1:1 mapping
+ * @notice ERC-721 that wraps ethscriptions for OpenSea compatibility.
+ *         Deployed on Ethereum mainnet (where ethscriptions live as calldata).
+ *
+ * Flow:
+ *   1. User transfers ethscription to this contract via ESIP-2
+ *   2. User calls wrap(ethscriptionId) → gets ERC-721 minted
+ *   3. NFT is tradeable on OpenSea
+ *   4. Owner calls unwrap(tokenId) → burns NFT, ESIP-2 transfers ethscription back
+ *
+ * tokenId = uint256(ethscriptionId) for 1:1 mapping
  */
 contract WrappedEthscription {
 
@@ -13,15 +21,25 @@ contract WrappedEthscription {
     event Approval(address indexed owner, address indexed approved, uint256 indexed tokenId);
     event ApprovalForAll(address indexed owner, address indexed operator, bool approved);
 
-    // --- Custom events ---
-    event Burned(bytes32 indexed ethscriptionId, address indexed owner);
+    // --- ESIP-2: trustless ethscription transfer ---
+    event ethscriptions_protocol_TransferEthscriptionForPreviousOwner(
+        address indexed previousOwner,
+        address indexed recipient,
+        bytes32 indexed ethscriptionId
+    );
+
+    // --- Wrap/unwrap events ---
+    event Wrapped(bytes32 indexed ethscriptionId, address indexed owner);
+    event Unwrapped(bytes32 indexed ethscriptionId, address indexed owner);
 
     string public name = "Wrapped Ethscription";
     string public symbol = "wESC";
 
     string public baseURI;
     address public admin;
-    address public relayer;
+
+    // ethscriptionId => depositor (who sent it to this contract)
+    mapping(bytes32 => address) public depositors;
 
     mapping(uint256 => address) private _owners;
     mapping(address => uint256) private _balances;
@@ -33,14 +51,8 @@ contract WrappedEthscription {
         _;
     }
 
-    modifier onlyRelayer() {
-        require(msg.sender == relayer, "Not relayer");
-        _;
-    }
-
-    constructor(string memory _baseURI, address _relayer) {
+    constructor(string memory _baseURI) {
         admin = msg.sender;
-        relayer = _relayer;
         baseURI = _baseURI;
     }
 
@@ -105,36 +117,57 @@ contract WrappedEthscription {
         return string(abi.encodePacked(baseURI, _toHexString(bytes32(tokenId))));
     }
 
-    // --- Mint & Burn ---
-    function mint(bytes32 ethscriptionId, address to) external onlyRelayer {
+    // --- Wrap & Unwrap ---
+
+    /**
+     * @notice Wrap an ethscription as an ERC-721 NFT.
+     * @dev User must first transfer the ethscription to this contract via ESIP-2
+     *      (send a mainnet tx to this contract with the ethscriptionId as calldata).
+     *      Then call wrap() to register and mint.
+     * @param ethscriptionId The SHA256 hash of the ethscription content
+     */
+    function wrap(bytes32 ethscriptionId) external {
+        require(depositors[ethscriptionId] == address(0), "Already wrapped");
+
         uint256 tokenId = uint256(ethscriptionId);
         require(_owners[tokenId] == address(0), "Already minted");
-        require(to != address(0), "Zero address");
 
-        _balances[to] += 1;
-        _owners[tokenId] = to;
-        emit Transfer(address(0), to, tokenId);
+        depositors[ethscriptionId] = msg.sender;
+        _balances[msg.sender] += 1;
+        _owners[tokenId] = msg.sender;
+
+        emit Transfer(address(0), msg.sender, tokenId);
+        emit Wrapped(ethscriptionId, msg.sender);
     }
 
-    function burn(uint256 tokenId) external {
+    /**
+     * @notice Unwrap: burn the NFT and get the ethscription back via ESIP-2.
+     * @param tokenId The token to burn (= uint256 of ethscriptionId)
+     */
+    function unwrap(uint256 tokenId) external {
         require(ownerOf(tokenId) == msg.sender, "Not token owner");
         bytes32 ethscriptionId = bytes32(tokenId);
 
+        // Clear NFT state
         delete _tokenApprovals[tokenId];
         _balances[msg.sender] -= 1;
         delete _owners[tokenId];
+        delete depositors[ethscriptionId];
 
         emit Transfer(msg.sender, address(0), tokenId);
-        emit Burned(ethscriptionId, msg.sender);
+        emit Unwrapped(ethscriptionId, msg.sender);
+
+        // ESIP-2: return ethscription to the burner
+        emit ethscriptions_protocol_TransferEthscriptionForPreviousOwner(
+            address(this),
+            msg.sender,
+            ethscriptionId
+        );
     }
 
     // --- Admin ---
     function setBaseURI(string memory _baseURI) external onlyAdmin {
         baseURI = _baseURI;
-    }
-
-    function setRelayer(address _relayer) external onlyAdmin {
-        relayer = _relayer;
     }
 
     function transferAdmin(address _admin) external onlyAdmin {

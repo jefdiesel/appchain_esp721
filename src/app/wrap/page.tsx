@@ -3,22 +3,16 @@
 import { useState, useEffect, useCallback } from "react";
 import Nav from "@/components/Nav";
 
-// Contract addresses — update after deployment
-const VAULT_ADDRESS = process.env.NEXT_PUBLIC_VAULT_ADDRESS || "0x0000000000000000000000000000000000000000";
+// Contract address — update after deployment on Ethereum mainnet
 const WRAPPED_ADDRESS = process.env.NEXT_PUBLIC_WRAPPED_ADDRESS || "0x0000000000000000000000000000000000000000";
 
-const APPCHAIN_RPC = "https://mainnet.ethscriptions.com";
-const APPCHAIN_CHAIN_ID = "0xeee2"; // 61154
 const ETHSCRIPTIONS_API = "https://api.ethscriptions.com/v2/ethscriptions";
-
-// Minimal ABIs for user interactions
-const VAULT_DEPOSIT_SIG = "0xe2bbb158"; // deposit(bytes32)
-const WRAPPED_BURN_SIG = "0x42966c68"; // burn(uint256)
+const MAINNET_CHAIN_ID = "0x1";
 
 type Tab = "wrap" | "unwrap";
 
-type WrapStatus = "idle" | "depositing" | "deposited" | "minting" | "minted" | "error";
-type UnwrapStatus = "idle" | "burning" | "burned" | "withdrawing" | "withdrawn" | "error";
+type WrapStatus = "idle" | "transferring" | "wrapping" | "wrapped" | "error";
+type UnwrapStatus = "idle" | "unwrapping" | "unwrapped" | "error";
 
 interface Ethscription {
   id: string;
@@ -30,6 +24,10 @@ interface WrappedNFT {
   tokenId: string;
   ethscriptionId: string;
 }
+
+// Function selectors (cast sig "wrap(bytes32)" / "unwrap(uint256)")
+const WRAP_SELECTOR = "0x5f029ebe";
+const UNWRAP_SELECTOR = "0xde0e9a3e";
 
 export default function WrapPage() {
   const [tab, setTab] = useState<Tab>("wrap");
@@ -89,18 +87,17 @@ export default function WrapPage() {
   }, [wallet, tab]);
 
   // Fetch user's wrapped NFTs (for unwrap tab)
-  // Uses Transfer events to find tokens owned by user
   useEffect(() => {
     if (!wallet || tab !== "unwrap") return;
     setLoadingNFTs(true);
 
-    // Query WrappedEthscription Transfer events where `to` is the user
-    // For simplicity, use etherscan API or direct RPC
-    // Here we'll use a basic eth_getLogs approach
     const fetchWrapped = async () => {
       try {
         const eth = (window as any).ethereum;
         if (!eth) return;
+
+        // Ensure we're on mainnet
+        try { await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId: MAINNET_CHAIN_ID }] }); } catch {}
 
         // Transfer(address,address,uint256) topic
         const transferTopic = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
@@ -117,7 +114,7 @@ export default function WrapPage() {
           }],
         });
 
-        // Get transfers FROM this wallet
+        // Get transfers FROM this wallet (including burns to 0x0)
         const logsFrom = await eth.request({
           method: "eth_getLogs",
           params: [{
@@ -131,7 +128,7 @@ export default function WrapPage() {
         // Compute owned set: received - sent
         const owned = new Set<string>();
         for (const log of (logs || [])) {
-          owned.add(log.topics[3]); // tokenId
+          owned.add(log.topics[3]);
         }
         for (const log of (logsFrom || [])) {
           owned.delete(log.topics[3]);
@@ -139,7 +136,7 @@ export default function WrapPage() {
 
         const nfts: WrappedNFT[] = Array.from(owned).map(tokenId => ({
           tokenId,
-          ethscriptionId: tokenId, // tokenId == ethscriptionId as uint256
+          ethscriptionId: tokenId,
         }));
 
         setWrappedNFTs(nfts);
@@ -153,155 +150,88 @@ export default function WrapPage() {
     fetchWrapped();
   }, [wallet, tab]);
 
-  // --- Wrap: deposit ethscription to vault ---
-  const handleWrap = async () => {
-    if (!selectedEsc || !wallet) return;
-    setError("");
-    setWrapStatus("depositing");
-
+  // Switch to Ethereum mainnet
+  const ensureMainnet = async (eth: any) => {
     try {
-      const eth = (window as any).ethereum;
-
-      // Step 1: Switch to AppChain
-      try {
-        await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId: APPCHAIN_CHAIN_ID }] });
-      } catch (switchErr: any) {
-        if (switchErr.code === 4902) {
-          await eth.request({
-            method: "wallet_addEthereumChain",
-            params: [{
-              chainId: APPCHAIN_CHAIN_ID,
-              chainName: "Ethscriptions Mainnet",
-              rpcUrls: [APPCHAIN_RPC],
-              nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
-            }],
-          });
-        } else throw switchErr;
-      }
-
-      // Step 2: Transfer ethscription to vault via ESIP-2 (send 0 ETH tx with ethscriptionId as calldata)
-      const transferTx = await eth.request({
-        method: "eth_sendTransaction",
-        params: [{
-          from: wallet,
-          to: VAULT_ADDRESS,
-          value: "0x0",
-          data: selectedEsc.id, // ethscription transfer = send tx with ethscription ID as data
-        }],
-      });
-
-      // Step 3: Call deposit() on vault to register
-      const depositData = VAULT_DEPOSIT_SIG + selectedEsc.id.slice(2).padStart(64, "0");
-      const depositTx = await eth.request({
-        method: "eth_sendTransaction",
-        params: [{
-          from: wallet,
-          to: VAULT_ADDRESS,
-          value: "0x0",
-          data: depositData,
-        }],
-      });
-
-      setWrapTx(depositTx);
-      setWrapStatus("deposited");
-
-      // Poll for mint (relayer will mint on Ethereum mainnet)
-      pollForMint(selectedEsc.id);
-    } catch (err: any) {
-      setError(err.message || "Wrap failed");
-      setWrapStatus("error");
+      await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId: MAINNET_CHAIN_ID }] });
+    } catch (switchErr: any) {
+      if (switchErr.code === 4902) throw new Error("Please add Ethereum mainnet to your wallet");
+      throw switchErr;
     }
   };
 
-  const pollForMint = (ethscriptionId: string) => {
-    setWrapStatus("minting");
-    let attempts = 0;
-    const interval = setInterval(async () => {
-      attempts++;
-      if (attempts > 60) { // ~5 minutes
-        clearInterval(interval);
-        setWrapStatus("deposited"); // Still deposited, mint pending
-        return;
-      }
-      try {
-        const eth = (window as any).ethereum;
-        // Check if token exists on Ethereum mainnet by calling ownerOf
-        // ownerOf(uint256) = 0x6352211e
-        const data = "0x6352211e" + ethscriptionId.slice(2).padStart(64, "0");
-
-        // Switch to Ethereum mainnet for the check
-        try { await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0x1" }] }); } catch {}
-
-        const result = await eth.request({
-          method: "eth_call",
-          params: [{ to: WRAPPED_ADDRESS, data }, "latest"],
-        });
-        if (result && result !== "0x") {
-          clearInterval(interval);
-          setWrapStatus("minted");
-        }
-      } catch {
-        // Token doesn't exist yet, keep polling
-      }
-    }, 5000);
-  };
-
-  // --- Unwrap: burn NFT on Ethereum mainnet ---
-  const handleUnwrap = async () => {
-    if (!selectedNFT || !wallet) return;
+  // --- Wrap: transfer ethscription to contract + call wrap() ---
+  const handleWrap = async () => {
+    if (!selectedEsc || !wallet) return;
     setError("");
-    setUnwrapStatus("burning");
+    setWrapStatus("transferring");
 
     try {
       const eth = (window as any).ethereum;
+      await ensureMainnet(eth);
 
-      // Switch to Ethereum mainnet
-      await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0x1" }] });
+      // Step 1: Transfer ethscription to contract via ESIP-2
+      // (send 0 ETH tx to contract with ethscriptionId as calldata)
+      await eth.request({
+        method: "eth_sendTransaction",
+        params: [{
+          from: wallet,
+          to: WRAPPED_ADDRESS,
+          value: "0x0",
+          data: selectedEsc.id,
+        }],
+      });
 
-      // burn(uint256 tokenId)
-      const burnData = WRAPPED_BURN_SIG + selectedNFT.tokenId.slice(2).padStart(64, "0");
+      setWrapStatus("wrapping");
+
+      // Step 2: Call wrap(bytes32 ethscriptionId) to mint the NFT
+      const wrapData = WRAP_SELECTOR + selectedEsc.id.slice(2).padStart(64, "0");
       const tx = await eth.request({
         method: "eth_sendTransaction",
         params: [{
           from: wallet,
           to: WRAPPED_ADDRESS,
           value: "0x0",
-          data: burnData,
+          data: wrapData,
+        }],
+      });
+
+      setWrapTx(tx);
+      setWrapStatus("wrapped");
+    } catch (err: any) {
+      setError(err.message || "Wrap failed");
+      setWrapStatus("error");
+    }
+  };
+
+  // --- Unwrap: call unwrap(tokenId) to burn NFT + get ethscription back ---
+  const handleUnwrap = async () => {
+    if (!selectedNFT || !wallet) return;
+    setError("");
+    setUnwrapStatus("unwrapping");
+
+    try {
+      const eth = (window as any).ethereum;
+      await ensureMainnet(eth);
+
+      // unwrap(uint256 tokenId)
+      const unwrapData = UNWRAP_SELECTOR + selectedNFT.tokenId.slice(2).padStart(64, "0");
+      const tx = await eth.request({
+        method: "eth_sendTransaction",
+        params: [{
+          from: wallet,
+          to: WRAPPED_ADDRESS,
+          value: "0x0",
+          data: unwrapData,
         }],
       });
 
       setUnwrapTx(tx);
-      setUnwrapStatus("burned");
-
-      // Poll for withdrawal on AppChain
-      pollForWithdraw(selectedNFT.ethscriptionId);
+      setUnwrapStatus("unwrapped");
     } catch (err: any) {
       setError(err.message || "Unwrap failed");
       setUnwrapStatus("error");
     }
-  };
-
-  const pollForWithdraw = (ethscriptionId: string) => {
-    setUnwrapStatus("withdrawing");
-    let attempts = 0;
-    const interval = setInterval(async () => {
-      attempts++;
-      if (attempts > 60) {
-        clearInterval(interval);
-        setUnwrapStatus("burned");
-        return;
-      }
-      try {
-        // Check if ethscription ownership returned via API
-        const res = await fetch(`${ETHSCRIPTIONS_API}/${ethscriptionId}`);
-        const data = await res.json();
-        const esc = data.result || data;
-        if (esc.current_owner?.toLowerCase() === wallet) {
-          clearInterval(interval);
-          setUnwrapStatus("withdrawn");
-        }
-      } catch {}
-    }, 5000);
   };
 
   const formatId = (id: string) => id.slice(0, 10) + "…" + id.slice(-6);
@@ -396,32 +326,26 @@ export default function WrapPage() {
                   </button>
                 )}
 
-                {wrapStatus === "depositing" && (
+                {wrapStatus === "transferring" && (
                   <div className="text-center py-4">
-                    <p className="text-[#C3FF00] animate-pulse">Depositing to vault…</p>
-                    <p className="text-xs text-gray-500 mt-2">Confirm both transactions in your wallet</p>
+                    <p className="text-[#C3FF00] animate-pulse">Transferring ethscription to contract…</p>
+                    <p className="text-xs text-gray-500 mt-2">Confirm the ESIP-2 transfer in your wallet</p>
                   </div>
                 )}
 
-                {wrapStatus === "deposited" && (
+                {wrapStatus === "wrapping" && (
                   <div className="text-center py-4">
-                    <p className="text-green-400">Deposited!</p>
+                    <p className="text-[#C3FF00] animate-pulse">Minting ERC-721…</p>
+                    <p className="text-xs text-gray-500 mt-2">Confirm the wrap transaction in your wallet</p>
+                  </div>
+                )}
+
+                {wrapStatus === "wrapped" && (
+                  <div className="text-center py-4">
+                    <p className="text-green-400 text-lg font-semibold">Wrapped!</p>
                     <p className="text-xs text-gray-500 mt-1">TX: {formatId(wrapTx)}</p>
-                    <p className="text-xs text-gray-500">Waiting for relayer to mint NFT on Ethereum…</p>
-                  </div>
-                )}
-
-                {wrapStatus === "minting" && (
-                  <div className="text-center py-4">
-                    <p className="text-[#C3FF00] animate-pulse">Minting NFT on Ethereum…</p>
-                  </div>
-                )}
-
-                {wrapStatus === "minted" && (
-                  <div className="text-center py-4">
-                    <p className="text-green-400 text-lg font-semibold">NFT Minted!</p>
                     <p className="text-xs text-gray-500 mt-2">
-                      Your wrapped ethscription is now an ERC-721 on Ethereum. It will appear on OpenSea shortly.
+                      Your ethscription is now an ERC-721 on Ethereum. It will appear on OpenSea shortly.
                     </p>
                   </div>
                 )}
@@ -483,31 +407,19 @@ export default function WrapPage() {
                   </button>
                 )}
 
-                {unwrapStatus === "burning" && (
+                {unwrapStatus === "unwrapping" && (
                   <div className="text-center py-4">
-                    <p className="text-red-400 animate-pulse">Burning NFT on Ethereum…</p>
+                    <p className="text-red-400 animate-pulse">Burning NFT &amp; returning ethscription…</p>
+                    <p className="text-xs text-gray-500 mt-2">Confirm the transaction in your wallet</p>
                   </div>
                 )}
 
-                {unwrapStatus === "burned" && (
-                  <div className="text-center py-4">
-                    <p className="text-yellow-400">NFT Burned</p>
-                    <p className="text-xs text-gray-500 mt-1">TX: {formatId(unwrapTx)}</p>
-                    <p className="text-xs text-gray-500">Waiting for relayer to return ethscription…</p>
-                  </div>
-                )}
-
-                {unwrapStatus === "withdrawing" && (
-                  <div className="text-center py-4">
-                    <p className="text-yellow-400 animate-pulse">Withdrawing from vault…</p>
-                  </div>
-                )}
-
-                {unwrapStatus === "withdrawn" && (
+                {unwrapStatus === "unwrapped" && (
                   <div className="text-center py-4">
                     <p className="text-green-400 text-lg font-semibold">Ethscription Restored!</p>
+                    <p className="text-xs text-gray-500 mt-1">TX: {formatId(unwrapTx)}</p>
                     <p className="text-xs text-gray-500 mt-2">
-                      Your ethscription has been returned to your wallet on the AppChain.
+                      Your ethscription has been returned via ESIP-2. Ownership will update once indexed.
                     </p>
                   </div>
                 )}
@@ -529,10 +441,10 @@ export default function WrapPage() {
         <div className="mt-12 p-4 bg-zinc-900 rounded-lg border border-zinc-800">
           <h3 className="text-sm font-semibold text-white mb-2">How it works</h3>
           <ol className="text-xs text-gray-500 space-y-1 list-decimal list-inside">
-            <li>Deposit your ethscription into the vault on the AppChain</li>
-            <li>The relayer mints a corresponding ERC-721 NFT on Ethereum</li>
-            <li>Your NFT appears on OpenSea and other marketplaces</li>
-            <li>Burn the NFT anytime to get your ethscription back</li>
+            <li>Transfer your ethscription to the wrapper contract via ESIP-2</li>
+            <li>Call wrap to mint an ERC-721 NFT on Ethereum mainnet</li>
+            <li>Your NFT appears on OpenSea and other EVM marketplaces</li>
+            <li>Burn the NFT anytime to get your ethscription back via ESIP-2</li>
           </ol>
         </div>
       </main>
