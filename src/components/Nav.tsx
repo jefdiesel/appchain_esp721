@@ -9,6 +9,7 @@ const links = [
   { href: "/register", label: "Register" },
   { href: "/resolve", label: "Resolve" },
   { href: "/upload", label: "Upload Site" },
+  { href: "/wrap", label: "Wrap" },
 ];
 
 function formatAddress(addr: string) {
