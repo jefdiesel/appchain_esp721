@@ -3,16 +3,16 @@
  * Wrapper Relayer
  *
  * Watches for:
- *   - Deposited events on AppChain EthscriptionVault → mints ERC-721 on Base
- *   - Burned events on Base WrappedEthscription → withdraws on AppChain
+ *   - Deposited events on AppChain EthscriptionVault → mints ERC-721 on Ethereum mainnet
+ *   - Burned events on Ethereum mainnet WrappedEthscription → withdraws on AppChain
  *
  * Idempotent: uses SQLite to track processed events.
  *
  * Env vars:
  *   APPCHAIN_RPC          - AppChain RPC URL (default: https://mainnet.ethscriptions.com)
- *   BASE_RPC              - Base RPC URL
+ *   MAINNET_RPC           - Ethereum mainnet RPC URL
  *   VAULT_ADDRESS         - EthscriptionVault contract on AppChain
- *   WRAPPED_ADDRESS       - WrappedEthscription contract on Base
+ *   WRAPPED_ADDRESS       - WrappedEthscription contract on Ethereum mainnet
  *   RELAYER_PRIVATE_KEY   - Private key for relayer wallet (funded on both chains)
  *   POLL_INTERVAL_MS      - Polling interval (default: 10000)
  *   SQLITE_PATH           - Path to SQLite DB (default: ./relayer.db)
@@ -24,7 +24,7 @@ const path = require("path");
 
 // --- Config ---
 const APPCHAIN_RPC = process.env.APPCHAIN_RPC || "https://mainnet.ethscriptions.com";
-const BASE_RPC = process.env.BASE_RPC || "https://mainnet.base.org";
+const MAINNET_RPC = process.env.MAINNET_RPC || "https://eth.llamarpc.com";
 const VAULT_ADDRESS = process.env.VAULT_ADDRESS;
 const WRAPPED_ADDRESS = process.env.WRAPPED_ADDRESS;
 const RELAYER_PRIVATE_KEY = process.env.RELAYER_PRIVATE_KEY;
@@ -51,13 +51,13 @@ const WRAPPED_ABI = [
 
 // --- Providers & Wallets ---
 const appchainProvider = new ethers.JsonRpcProvider(APPCHAIN_RPC);
-const baseProvider = new ethers.JsonRpcProvider(BASE_RPC);
+const mainnetProvider = new ethers.JsonRpcProvider(MAINNET_RPC);
 
 const appchainWallet = new ethers.Wallet(RELAYER_PRIVATE_KEY, appchainProvider);
-const baseWallet = new ethers.Wallet(RELAYER_PRIVATE_KEY, baseProvider);
+const mainnetWallet = new ethers.Wallet(RELAYER_PRIVATE_KEY, mainnetProvider);
 
 const vault = new ethers.Contract(VAULT_ADDRESS, VAULT_ABI, appchainWallet);
-const wrapped = new ethers.Contract(WRAPPED_ADDRESS, WRAPPED_ABI, baseWallet);
+const wrapped = new ethers.Contract(WRAPPED_ADDRESS, WRAPPED_ABI, mainnetWallet);
 
 // --- SQLite ---
 const db = new Database(SQLITE_PATH);
@@ -112,7 +112,7 @@ async function pollDeposits() {
     const ethscriptionId = event.args[0];
     const owner = event.args[1];
 
-    console.log(`[DEPOSIT] ${ethscriptionId} from ${owner} — minting on Base...`);
+    console.log(`[DEPOSIT] ${ethscriptionId} from ${owner} — minting on mainnet...`);
 
     try {
       const tx = await wrapped.mint(ethscriptionId, owner);
@@ -130,8 +130,8 @@ async function pollDeposits() {
 }
 
 async function pollBurns() {
-  const fromBlock = getCursor("base") + 1;
-  const toBlock = await baseProvider.getBlockNumber();
+  const fromBlock = getCursor("mainnet") + 1;
+  const toBlock = await mainnetProvider.getBlockNumber();
   if (fromBlock > toBlock) return;
 
   const filter = wrapped.filters.Burned();
@@ -140,7 +140,7 @@ async function pollBurns() {
   for (const event of events) {
     const txHash = event.transactionHash;
     const logIndex = event.index;
-    if (isProcessed("base", txHash, logIndex)) continue;
+    if (isProcessed("mainnet", txHash, logIndex)) continue;
 
     const ethscriptionId = event.args[0];
     const owner = event.args[1];
@@ -152,14 +152,14 @@ async function pollBurns() {
       const receipt = await tx.wait();
       console.log(`[WITHDRAW] tx: ${receipt.hash}`);
 
-      stmtInsertProcessed.run("base", txHash, logIndex, "burn", ethscriptionId, receipt.hash);
+      stmtInsertProcessed.run("mainnet", txHash, logIndex, "burn", ethscriptionId, receipt.hash);
     } catch (err) {
       console.error(`[WITHDRAW ERROR] ${ethscriptionId}:`, err.message);
       continue;
     }
   }
 
-  stmtSetCursor.run("base", toBlock);
+  stmtSetCursor.run("mainnet", toBlock);
 }
 
 async function run() {

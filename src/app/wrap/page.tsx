@@ -95,7 +95,7 @@ export default function WrapPage() {
     setLoadingNFTs(true);
 
     // Query WrappedEthscription Transfer events where `to` is the user
-    // For simplicity, use etherscan/basescan API or direct RPC
+    // For simplicity, use etherscan API or direct RPC
     // Here we'll use a basic eth_getLogs approach
     const fetchWrapped = async () => {
       try {
@@ -205,7 +205,7 @@ export default function WrapPage() {
       setWrapTx(depositTx);
       setWrapStatus("deposited");
 
-      // Poll for mint (relayer will mint on Base)
+      // Poll for mint (relayer will mint on Ethereum mainnet)
       pollForMint(selectedEsc.id);
     } catch (err: any) {
       setError(err.message || "Wrap failed");
@@ -225,14 +225,12 @@ export default function WrapPage() {
       }
       try {
         const eth = (window as any).ethereum;
-        // Check if token exists on Base by calling ownerOf
-        const tokenId = ethscriptionId.padStart(66, "0x".padStart(2, "0"));
+        // Check if token exists on Ethereum mainnet by calling ownerOf
         // ownerOf(uint256) = 0x6352211e
         const data = "0x6352211e" + ethscriptionId.slice(2).padStart(64, "0");
 
-        // Switch to Base for the check
-        const baseChainId = process.env.NEXT_PUBLIC_USE_TESTNET === "true" ? "0x14a34" : "0x2105";
-        try { await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId: baseChainId }] }); } catch {}
+        // Switch to Ethereum mainnet for the check
+        try { await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0x1" }] }); } catch {}
 
         const result = await eth.request({
           method: "eth_call",
@@ -248,7 +246,7 @@ export default function WrapPage() {
     }, 5000);
   };
 
-  // --- Unwrap: burn NFT on Base ---
+  // --- Unwrap: burn NFT on Ethereum mainnet ---
   const handleUnwrap = async () => {
     if (!selectedNFT || !wallet) return;
     setError("");
@@ -257,23 +255,8 @@ export default function WrapPage() {
     try {
       const eth = (window as any).ethereum;
 
-      // Switch to Base
-      const baseChainId = process.env.NEXT_PUBLIC_USE_TESTNET === "true" ? "0x14a34" : "0x2105";
-      try {
-        await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId: baseChainId }] });
-      } catch (switchErr: any) {
-        if (switchErr.code === 4902) {
-          await eth.request({
-            method: "wallet_addEthereumChain",
-            params: [{
-              chainId: baseChainId,
-              chainName: "Base",
-              rpcUrls: ["https://mainnet.base.org"],
-              nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
-            }],
-          });
-        } else throw switchErr;
-      }
+      // Switch to Ethereum mainnet
+      await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0x1" }] });
 
       // burn(uint256 tokenId)
       const burnData = WRAPPED_BURN_SIG + selectedNFT.tokenId.slice(2).padStart(64, "0");
@@ -329,7 +312,7 @@ export default function WrapPage() {
       <main className="max-w-2xl mx-auto px-6 py-12">
         <h1 className="text-3xl font-bold text-white mb-2">Wrap Ethscriptions</h1>
         <p className="text-gray-500 mb-8">
-          Wrap ethscriptions as ERC-721 NFTs on Base for OpenSea compatibility. Unwrap anytime to restore ownership.
+          Wrap ethscriptions as ERC-721 NFTs on Ethereum for OpenSea compatibility. Unwrap anytime to restore ownership.
         </p>
 
         {/* Tabs */}
@@ -424,13 +407,13 @@ export default function WrapPage() {
                   <div className="text-center py-4">
                     <p className="text-green-400">Deposited!</p>
                     <p className="text-xs text-gray-500 mt-1">TX: {formatId(wrapTx)}</p>
-                    <p className="text-xs text-gray-500">Waiting for relayer to mint NFT on Base…</p>
+                    <p className="text-xs text-gray-500">Waiting for relayer to mint NFT on Ethereum…</p>
                   </div>
                 )}
 
                 {wrapStatus === "minting" && (
                   <div className="text-center py-4">
-                    <p className="text-[#C3FF00] animate-pulse">Minting NFT on Base…</p>
+                    <p className="text-[#C3FF00] animate-pulse">Minting NFT on Ethereum…</p>
                   </div>
                 )}
 
@@ -438,7 +421,7 @@ export default function WrapPage() {
                   <div className="text-center py-4">
                     <p className="text-green-400 text-lg font-semibold">NFT Minted!</p>
                     <p className="text-xs text-gray-500 mt-2">
-                      Your wrapped ethscription is now an ERC-721 on Base. It will appear on OpenSea shortly.
+                      Your wrapped ethscription is now an ERC-721 on Ethereum. It will appear on OpenSea shortly.
                     </p>
                   </div>
                 )}
@@ -502,7 +485,7 @@ export default function WrapPage() {
 
                 {unwrapStatus === "burning" && (
                   <div className="text-center py-4">
-                    <p className="text-red-400 animate-pulse">Burning NFT on Base…</p>
+                    <p className="text-red-400 animate-pulse">Burning NFT on Ethereum…</p>
                   </div>
                 )}
 
@@ -547,7 +530,7 @@ export default function WrapPage() {
           <h3 className="text-sm font-semibold text-white mb-2">How it works</h3>
           <ol className="text-xs text-gray-500 space-y-1 list-decimal list-inside">
             <li>Deposit your ethscription into the vault on the AppChain</li>
-            <li>The relayer mints a corresponding ERC-721 NFT on Base</li>
+            <li>The relayer mints a corresponding ERC-721 NFT on Ethereum</li>
             <li>Your NFT appears on OpenSea and other marketplaces</li>
             <li>Burn the NFT anytime to get your ethscription back</li>
           </ol>
